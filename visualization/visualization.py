@@ -1,7 +1,9 @@
+from collections import namedtuple
 from PIL import Image
 from typing import List
 import cv2
 import numpy as np
+
 
 def get_labeled_img(img: Image, labels: List[List]) -> Image:
     """

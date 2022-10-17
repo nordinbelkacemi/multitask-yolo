@@ -8,17 +8,14 @@ Padding:
     }
 """
 
-from collections import namedtuple
 from typing import Dict, List
-import xml.etree.ElementTree as ET
 from PIL import Image
 import torchvision.transforms.functional as F
-import config.config as cfg
+from config.config import model_input_resolution
 from typing import Tuple
-
-
-Resolution = namedtuple("Resolution", ["h", "w"])
-
+from data.dataset_converter_script import get_label_resolution
+from util.types import Resolution
+import util.bbox_transforms as bbox_transforms
 
 def get_padding(resolution: Resolution) -> Dict[str, int]:
     """
@@ -144,7 +141,7 @@ def get_resized_labels(
 def get_model_input(
     img: Image,
     labels: List[List],
-    target_resolution: Resolution = cfg.model_input_resolution
+    target_resolution: Resolution = model_input_resolution
 ) -> Tuple:
     """
     This method applies square padding to the image and its object labels, then resizes it to the
@@ -175,3 +172,36 @@ def get_model_input(
         padded_labels, padded_resolution, target_resolution)
 
     return resized_image, resized_labels
+
+
+def get_yolo_labels(label_file_path: str) -> List[List]:
+    """
+    Gets the labels from the label file of a yolo dataset
+
+    Args:
+        label_file_path (str): Path to the label file
+    
+    Returns:
+        List: [cls, x1, y1, x2, y2], where cls is a string
+    """
+    image_res: Resolution = get_label_resolution(label_file_path)
+    labels = []
+    with open(label_file_path, "r") as file:
+        for line in file:
+            obj_label = line.split()
+
+            cls = int(obj_label[0])
+            x = float(obj_label[1]) * image_res.w
+            y = float(obj_label[2]) * image_res.h
+            w = float(obj_label[2]) * image_res.w
+            h = float(obj_label[2]) * image_res.h
+
+            bbox_xywh = [x, y, w, h]
+            bbox_x1y1x2y2 = bbox_transforms.xywh_to_x1y1x2y2(bbox_xywh)
+            label = [cls] + bbox_x1y1x2y2
+
+            labels.append(label)
+    
+    return labels
+
+        
