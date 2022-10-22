@@ -13,7 +13,7 @@ from PIL import Image
 import torchvision.transforms.functional as F
 from config.config import model_input_resolution
 from typing import Tuple
-from data.dataset_converter_script import get_label_resolution
+from data.conversion.dataset_converter_script import get_label_resolution
 from util.types import Resolution
 import util.bbox_transforms as bbox_transforms
 

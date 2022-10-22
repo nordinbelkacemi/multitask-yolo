@@ -25,7 +25,7 @@ tar -xvf VOCtrainval_11-May-2012.tar
 
 import xml.etree.ElementTree as ET
 from typing import List, Dict
-from data.dataset_converter_script import (
+from data.conversion.dataset_converter_script import (
     DatasetConverterScript,
     get_image_file_path_from_label_file_path_default,
 )

@@ -21,7 +21,7 @@ https://s3.eu-central-1.amazonaws.com/avg-kitti/data_object_label_2.zip
 
 
 from typing import List, Dict
-from data.dataset_converter_script import (
+from data.conversion.dataset_converter_script import (
     DatasetConverterScript,
     get_image_file_path_from_label_file_path_default
 )
