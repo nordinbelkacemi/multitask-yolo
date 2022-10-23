@@ -129,7 +129,7 @@ class DatasetConverterScript(ABC):
         verbose: bool=True,
     ) -> None:
         if os.path.isdir(dst):
-            print(f"{dst} already exists. Try again with a different path")
+            print(f"{dst} already exists. Remove {dst} and try again, or use a different destination path")
             print("\nUsage: python3 -m data.pascalvoc.pascalvoc_to_yolo_converter_script dst\n")
             print("positional arguments:")
             print("dst\t\t\tDestination path; path to the converted dataset")

@@ -1,4 +1,5 @@
 from typing import List, Tuple
+from util.types import Resolution
 
 
 def x1x2y1y2_to_xywh(bbox: List) -> List:
@@ -52,3 +53,10 @@ def scale_bbox(bbox: List, scaling_factor_xy: Tuple[float, float]) -> List:
         bbox[2] * scaling_factor_xy[0],  # w * scaling_factor_x
         bbox[3] * scaling_factor_xy[1],  # h * scaling_factor_y
     ]
+
+
+def yolo_bbox_to_x1y1x2y2(bbox: List, image_resolution: Resolution) -> List[float]:
+    """
+    Converts a YOLO bbox (xywh in normalized image space) to an image space x1y1x2y2 bbox
+    """
+    return xywh_to_x1y1x2y2(scale_bbox(bbox, image_resolution.as_wh_tuple()))

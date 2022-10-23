@@ -1,11 +1,10 @@
 from dataclasses import dataclass
 from torch import Tensor
-from typing import Optional, List
+from typing import Optional, List, Tuple
 
-from transforms import RandomHFlip, SquarePadAndResize
+from data.transforms import RandomHFlip, SquarePadAndResize
 from torchvision.transforms import Compose, ToTensor, Normalize
-from dataset import Dataset, ObjectLabel
-import random
+from data.dataset import Dataset, ObjectLabel
 import torch
 import config.config as cfg
 
@@ -24,19 +23,25 @@ class YOLOInput:
 
 
 class DataLoader:
-    def __init__(self, dataset, batch_size: int, shuffle: bool = True):
+    def __init__(self, dataset, batch_size: int):
         self.dataset: Dataset = dataset
         self.batch_size = batch_size
 
-        if shuffle:
-            random.shuffle(self.dataset.item_ids)
-
         self.transforms = Compose([
             SquarePadAndResize(target_resolution=cfg.model_input_resolution),
-            RandomHFlip(p=0.1),
+            RandomHFlip(p=0.0),
         ])
     
+    def __len__(self):
+        return int(len(self.dataset) / self.batch_size)
+    
     def __getitem__(self, index: int) -> YOLOInput:
+        """
+        Gets a batch dataset items
+        """
+        if not (index < self.__len__()):
+            raise IndexError
+        
         b, h, w = self.batch_size, cfg.model_input_resolution.h, cfg.model_input_resolution.w
 
         image_batch = torch.zeros(b, 3, h, w)
@@ -45,11 +50,11 @@ class DataLoader:
             dataset_item = self.transforms(self.dataset[i])
             
             image, labels = dataset_item.image, dataset_item.labels
-            image_batch[i] = Compose([
+            image_batch[i % self.batch_size] = Compose([
                 ToTensor(),
                 # Normalize(...)
             ])(image)
-            label_batch[i] = labels
+            label_batch[i % self.batch_size] = labels
 
         return YOLOInput(image=image_batch, label=label_batch)
 

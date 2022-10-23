@@ -13,38 +13,29 @@ code
 
 images: (training and testing)
 https://s3.eu-central-1.amazonaws.com/avg-kitti/data_object_image_2.zip:
+-> data_object_image_2/training/image_2 contains all the image files
 
 labels: (training)
 https://s3.eu-central-1.amazonaws.com/avg-kitti/data_object_label_2.zip
-
+-> training/label_2 contains all text files
 """
 
 
 from typing import List, Dict
-from data.conversion.dataset_converter_script import (
+from data.datasets.dataset_converter_script import (
     DatasetConverterScript,
     get_image_file_path_from_label_file_path_default
 )
-import sys
 import random
 from glob import glob
+from metadata import (
+    original_kitti_labels_root,
+    original_kitti_images_root,
+    kitti_root_path,
+    kitti_classes,
+    kitti_image_file_extension,
+)
 
-
-kitti_root = f"/root/workdir/datasets/kitti"
-kitti_images_root = f"{kitti_root}/training/image_2"
-kitti_labels_root = f"{kitti_root}/training/label_2"
-kitti_classes = [
-    "Car",
-    "Truck",
-    "DontCare",
-    "Pedestrian",
-    "Cyclist",
-    "Van",
-    "Tram",
-    "Misc",
-    "Person_sitting",
-]
-kitti_image_file_extension = "png"
 
 
 class KITTIToYOLOConverterScript(DatasetConverterScript):
@@ -53,7 +44,7 @@ class KITTIToYOLOConverterScript(DatasetConverterScript):
 
 
     def _get_dataset_label_paths(self) -> Dict[str, List[str]]:
-        all_label_paths = glob(f"{kitti_labels_root}/*.txt")
+        all_label_paths = glob(f"{original_kitti_labels_root}/*.txt")
         num_files = len(all_label_paths)
         random.shuffle(all_label_paths)
 
@@ -78,7 +69,7 @@ class KITTIToYOLOConverterScript(DatasetConverterScript):
     def _get_image_file_path_from_label_file_path(self, label_file_path: str) -> str:
         return get_image_file_path_from_label_file_path_default(
             label_file_path=label_file_path,
-            dataset_images_root_path=kitti_images_root,
+            dataset_images_root_path=original_kitti_images_root,
             image_file_extension=kitti_image_file_extension
         )
 
@@ -109,5 +100,5 @@ class KITTIToYOLOConverterScript(DatasetConverterScript):
 
 if __name__ == "__main__":
     KITTIToYOLOConverterScript().run(
-        dst=sys.argv[1]
+        dst=kitti_root_path
     )

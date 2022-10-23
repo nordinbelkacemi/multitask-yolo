@@ -25,39 +25,18 @@ tar -xvf VOCtrainval_11-May-2012.tar
 
 import xml.etree.ElementTree as ET
 from typing import List, Dict
-from data.conversion.dataset_converter_script import (
+from data.datasets.dataset_converter_script import (
     DatasetConverterScript,
     get_image_file_path_from_label_file_path_default,
 )
 import sys
-
-
-pascalvoc_root = f"/root/workdir/datasets/pascalvoc/VOCdevkit/VOC2012"
-pascalvoc_images_root = f"{pascalvoc_root}/JPEGImages"
-classes = [
-    "names:",
-    "aeroplane",
-    "bicycle",
-    "bird",
-    "boat",
-    "bottle",
-    "bus",
-    "car",
-    "cat",
-    "chair",
-    "cow",
-    "diningtable",
-    "dog",
-    "horse",
-    "motorbike",
-    "person",
-    "pottedplant",
-    "sheep",
-    "sofa",
-    "train",
-    "tvmonitor",
-]
-image_file_extension = "jpg"
+from metadata import (
+    original_pascalvoc_root,
+    original_pascalvoc_images_root,
+    pascalvoc_root_path,
+    pascalvoc_classes,
+    pascalvoc_image_file_extension
+)
 
 
 class PascalVOCToYOLOConverterScript(DatasetConverterScript):
@@ -68,8 +47,8 @@ class PascalVOCToYOLOConverterScript(DatasetConverterScript):
     def _get_dataset_label_paths(self) -> Dict[str, List[str]]:
         return {
             dataset_type: [
-                f"{pascalvoc_root}/Annotations/{item_id}.xml"
-                for item_id in [line.strip() for line in open(f"{pascalvoc_root}/ImageSets/Main/{dataset_type}.txt")]
+                f"{original_pascalvoc_root}/Annotations/{item_id}.xml"
+                for item_id in [line.strip() for line in open(f"{original_pascalvoc_root}/ImageSets/Main/{dataset_type}.txt")]
             ] for dataset_type in ["train", "val"]
         }
 
@@ -82,8 +61,8 @@ class PascalVOCToYOLOConverterScript(DatasetConverterScript):
                 dataset_image_paths[dataset_type].append(
                     get_image_file_path_from_label_file_path_default(
                         label_file_path=dataset_label_path,
-                        dataset_images_root_path=pascalvoc_images_root,
-                        image_file_extension=image_file_extension,
+                        dataset_images_root_path=original_pascalvoc_images_root,
+                        image_file_extension=pascalvoc_image_file_extension,
                     )
                 )
 
@@ -91,14 +70,14 @@ class PascalVOCToYOLOConverterScript(DatasetConverterScript):
     
 
     def _get_classes(self) -> List[str]:
-        return classes
+        return pascalvoc_classes
     
 
     def _get_image_file_path_from_label_file_path(self, label_file_path: str) -> str:
         return get_image_file_path_from_label_file_path_default(
             label_file_path=label_file_path,
-            dataset_images_root_path=pascalvoc_images_root,
-            image_file_extension=image_file_extension
+            dataset_images_root_path=original_pascalvoc_images_root,
+            image_file_extension=pascalvoc_image_file_extension
         )
 
 
@@ -151,5 +130,5 @@ class PascalVOCToYOLOConverterScript(DatasetConverterScript):
 
 if __name__ == "__main__":
     PascalVOCToYOLOConverterScript().run(
-        dst=sys.argv[1]
+        dst=pascalvoc_root_path
     )
