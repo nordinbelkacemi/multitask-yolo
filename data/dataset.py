@@ -20,6 +20,9 @@ image_file_extension = "jpg"
 
 @dataclass
 class ObjectLabel:
+    """
+    YOLO format object label
+    """
     cls: int
     x: float
     y: float
@@ -33,32 +36,32 @@ class ObjectLabel:
 
 @dataclass
 class DatasetItem:
-    image: PILImage
+    id: str
     labels: List[ObjectLabel]
+    image: PILImage
 
 
 class Dataset:
-    def __init__(self, root_path: str, classes: List[str], shuffle = True):
+    def __init__(self, root_path: str, classes: List[str], shuffle=True):
         self.root_path = root_path
         self.classes = classes
-        self.item_ids = [f"{i:06}" for i in range(len(glob(f"{root_path}/*.jpg")))]
+        self.ids = [f"{i:06}" for i in range(len(glob(f"{root_path}/*.jpg")))]
         if shuffle:
-            random.shuffle(self.item_ids)
+            random.shuffle(self.ids)
 
  
     def __len__(self) -> int:      
-        return len(self.item_ids)
+        return len(self.ids)
 
 
     def __getitem__(self, index: int) -> DatasetItem:
         if not (index < self.__len__()):
             raise IndexError
         
-        item_id = self.item_ids[index]
-        image = Image.open(f"{self.root_path}/{item_id}.{image_file_extension}")
+        id = self.ids[index]
+        image = Image.open(f"{self.root_path}/{id}.{image_file_extension}")
         labels = []
-        print(f"{self.root_path}/{item_id}.txt")
-        with open(f"{self.root_path}/{item_id}.txt", "r") as file:
+        with open(f"{self.root_path}/{id}.txt", "r") as file:
             for line in file:
                 line = line.split()
                 labels.append(
@@ -71,11 +74,11 @@ class Dataset:
                     )
                 )
         
-        return DatasetItem(image=image, labels=labels)
+        return DatasetItem(id=id, image=image, labels=labels)
     
 
     @classmethod
-    def from_name_and_type(cls, dataset_name: str, dataset_type: str, shuffle: bool = True):
+    def from_name_and_type(cls, dataset_name: str, dataset_type: str, shuffle=True):
         """
         Creates a dataset from a dataset name
 

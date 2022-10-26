@@ -80,8 +80,9 @@ class SquarePadAndResize(DatasetItemTransform):
         
         # return result
         return DatasetItem(
+            id=dataset_item.id,
+            labels=padded_labels,  # resize does not change normalized image space object labels
             image=resized_padded_image,
-            labels=padded_labels  # resize does not change normalized image space object labels
         )
 
 

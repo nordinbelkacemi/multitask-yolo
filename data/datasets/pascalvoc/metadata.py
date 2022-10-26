@@ -2,10 +2,9 @@ original_pascalvoc_root = f"/root/workdir/datasets/pascalvoc/VOCdevkit/VOC2012"
 original_pascalvoc_images_root = f"{original_pascalvoc_root}/JPEGImages"
 
 # root path of the dataset in yolo format
-pascalvoc_root_path = "/root/workdir/yolo-datasets/pascalvoc"
+pascalvoc_root_path = "/root/workdir/yolo_datasets/pascalvoc"
 
 pascalvoc_classes = [
-    "names:",
     "aeroplane",
     "bicycle",
     "bird",

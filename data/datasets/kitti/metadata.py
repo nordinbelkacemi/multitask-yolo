@@ -4,7 +4,7 @@ original_kitti_labels_root = f"{original_kitti_root}/training/label_2"
 
 
 # root path of the dataset in yolo format
-kitti_root_path = f"/root/workdir/yolo-datasets/kitti"
+kitti_root_path = f"/root/workdir/yolo_datasets/kitti"
 
 kitti_classes = [
     "Car",

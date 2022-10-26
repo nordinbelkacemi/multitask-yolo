@@ -28,7 +28,7 @@ from data.datasets.dataset_converter_script import (
 )
 import random
 from glob import glob
-from metadata import (
+from data.datasets.kitti.metadata import (
     original_kitti_labels_root,
     original_kitti_images_root,
     kitti_root_path,

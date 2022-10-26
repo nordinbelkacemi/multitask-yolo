@@ -25,7 +25,7 @@ class Resolution:
             Resolution: The input image's resolution
         """
         w, h = image.size
-        return Resolution(w=w, h=h)
+        return Resolution(w, h)
 
 
     def as_hw_tuple(self) -> Tuple[int, int]:

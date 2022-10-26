@@ -1,3 +1,4 @@
+import PIL
 from PIL import Image
 from PIL.Image import Image as PILImage
 from typing import List
@@ -10,56 +11,56 @@ from util.types import Resolution
 import config.config as cfg
 from data.transforms import get_padding
 
+# unpad_labels(unpadded_resolution, )
+# get_labeled_img(image, labels, classes, scale)
 
-def get_labeled_img(original_image: PILImage, labels_model_space: List[ObjectLabel], classes: List[str], visualization_resolution: Resolution) -> PILImage:
+def unpad_labels(unpadded_resolution: Resolution, padded_labels: List[ObjectLabel]) -> List[ObjectLabel]:
     """
-    Given object labels in the normalized image space (with the model's input resolution), this
-    method draws class labeled bounding boxes around each object on the original image. The output
-    is scaled to the desired resolution, which is given by the visualization_resolution parameter.
+    Reverts square padded object labels to non padded (ones to be original/unpadded image resolution)
+    """
+    intermediate_resolution = Resolution(
+        w=max(unpadded_resolution.w, unpadded_resolution.h),
+        h=max(unpadded_resolution.w, unpadded_resolution.h),
+    )
+    padding = get_padding(unpadded_resolution)
+    return [
+        ObjectLabel(
+            cls=label.cls,
+            x=(label.x * intermediate_resolution.w - padding[0]) / unpadded_resolution.w,
+            y=(label.y * intermediate_resolution.h - padding[1]) / unpadded_resolution.h,
+            w=(label.w * intermediate_resolution.w) / unpadded_resolution.w,
+            h=(label.h * intermediate_resolution.h) / unpadded_resolution.h,
+        ) for label in padded_labels
+    ]
+
+
+def get_labeled_img(image: PILImage, labels: List[ObjectLabel], classes: List[str], scale=1.0) -> PILImage:
+    """
+    Given object labels, this method draws class labeled bounding boxes around each object. The
+    output is scaled as per the `scale` parameter.
 
     Args:
-        original_image (Image): Image related to the object labels given by `model_space_labels`
-        labels_model_space (List[ObjectLabel]): A list of object labels in yolo format in the
-            model's input resolution 
+        image (Image): Input image
+        labels (List[ObjectLabel]): Object labels on the input image
         classes (List[str]): A list of class names
-        visualization_resolution (Resolution): Resolution of the output image
+        scale (float): Resolution of the output image
     
     Returns:
         Image: The image with ground truth bounding boxes (given by labels) drawn on it in the
             target visualization resolution
     """
-    original_resolution = Resolution.from_image(original_image)
-    intermediate_resolution = Resolution(
-        w=max(original_resolution.w, original_resolution.h),
-        h=max(original_resolution.w, original_resolution.h),
-    )
-    
-    padding = get_padding(original_resolution)
-    unpadded_labels = [
-        ObjectLabel(
-            cls=label.cls,
-            x=(label.x * intermediate_resolution.w - padding[0]) / original_resolution.w,
-            y=(label.y * intermediate_resolution.h - padding[1]) / original_resolution.h,
-            w=(label.w * intermediate_resolution.w) / original_resolution.w,
-            h=(label.h * intermediate_resolution.h) / original_resolution.h,
-        ) for label in labels_model_space
-    ]
 
-
-    image = original_image.resize(visualization_resolution.as_wh_tuple())
+    w, h = image.size
+    image = image.resize((int(w * scale), int(h * scale)))
     image_cv2 = np.array(image, dtype=np.float32)
 
     # print(visualization_resolution)
-    for label in unpadded_labels:
+    for label in labels:
         cls: str = classes[label.cls]
-        [x1, y1, x2, y2] = scale_bbox(
-            bbox=yolo_bbox_to_x1y1x2y2(label.get_bbox(), original_resolution),
-            scaling_factor_xy=(
-                (visualization_resolution.w / original_resolution.w),
-                (visualization_resolution.h / original_resolution.h),
-            )
+        [x1, y1, x2, y2] = yolo_bbox_to_x1y1x2y2(
+            scale_bbox(label.get_bbox(), (scale, scale)),
+            Resolution(w, h)
         )
-        # print(x1, y1, x2, y2)
 
         # draw bounding box
         cv2.rectangle(

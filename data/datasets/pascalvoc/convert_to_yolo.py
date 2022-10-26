@@ -29,8 +29,7 @@ from data.datasets.dataset_converter_script import (
     DatasetConverterScript,
     get_image_file_path_from_label_file_path_default,
 )
-import sys
-from metadata import (
+from data.datasets.pascalvoc.metadata import (
     original_pascalvoc_root,
     original_pascalvoc_images_root,
     pascalvoc_root_path,
