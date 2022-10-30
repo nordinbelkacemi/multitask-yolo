@@ -13,7 +13,7 @@ from visualization.visualization import unpad_labels
 if __name__ == "__main__":
     batch_size = 4
     shuffle = False
-    dataset = Dataset.from_name_and_type("pascalvoc", dataset_type="val", shuffle=shuffle)
+    dataset = Dataset.from_name_and_type("pascalvoc", dataset_type="train", shuffle=shuffle)
     dataloader = DataLoader(dataset, batch_size)
     
 

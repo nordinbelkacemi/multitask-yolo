@@ -7,14 +7,33 @@ original_kitti_labels_root = f"{original_kitti_root}/training/label_2"
 kitti_root_path = f"/root/workdir/yolo_datasets/kitti"
 
 kitti_classes = [
-    "Car",
-    "Truck",
-    "DontCare",
-    "Pedestrian",
-    "Cyclist",
-    "Van",
-    "Tram",
-    "Misc",
-    "Person_sitting",
+    "Car",              # vehicle
+    "Truck",            # vehicle
+    "DontCare",         # other
+    "Pedestrian",       # person
+    "Cyclist",          # person
+    "Van",              # vehicle
+    "Tram",             # vehicle
+    "Misc",             # other
+    "Person_sitting",   # person
 ]
+
+kitti_class_groups = {
+    "vehicle": [
+        "Car",
+        "Truck",
+        "Van",
+        "Tram",
+    ],
+    "person": [
+        "Pedestrian",
+        "Cyclist",
+        "Person_sitting",
+    ],
+    "other": [
+        "DontCare",
+        "Misc",
+    ]
+}
+
 kitti_image_file_extension = "png"

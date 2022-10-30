@@ -4,7 +4,7 @@ from typing import Dict, List
 
 from PIL import Image
 from tqdm import tqdm
-from util.bbox_transforms import scale_bbox, x1x2y1y2_to_xywh
+from util.bbox_utils import scale_bbox, x1x2y1y2_to_xywh
 from util.types import Resolution
 
 

@@ -6,7 +6,7 @@ import cv2
 import numpy as np
 
 from data.dataset import ObjectLabel
-from util.bbox_transforms import scale_bbox, yolo_bbox_to_x1y1x2y2
+from util.bbox_utils import scale_bbox, yolo_bbox_to_x1y1x2y2
 from util.types import Resolution
 import config.config as cfg
 from data.transforms import get_padding
@@ -56,7 +56,7 @@ def get_labeled_img(image: PILImage, labels: List[ObjectLabel], classes: List[st
 
     # print(visualization_resolution)
     for label in labels:
-        cls: str = classes[label.cls]
+        cl: str = classes[label.cls]
         [x1, y1, x2, y2] = yolo_bbox_to_x1y1x2y2(
             scale_bbox(label.get_bbox(), (scale, scale)),
             Resolution(w, h)
@@ -68,18 +68,38 @@ def get_labeled_img(image: PILImage, labels: List[ObjectLabel], classes: List[st
             pt1=(int(x1), int(y1)),
             pt2=(int(x2), int(y2)),
             color=(36, 255, 12),
-            thickness=1
+            thickness=2
         )
 
-        # label bounding boxx with the object's class
+
+        # label bounding box with the object's class (green background + black text)
+        font_face = cv2.FONT_HERSHEY_SIMPLEX
+        font_scale = 0.75
+        font_thickness = 2
+
+        (text_w, text_h), _ = cv2.getTextSize(cl, font_face, font_scale, font_thickness)
+
+        text_x1, text_x2 = int(x1), int(x1 + text_w)
+        text_y1, text_y2 = int(y1 - text_h), int(y1)
+        if text_y1 < 0:
+            text_y1, text_y2 = int(y1), int(y1 + text_h)
+
+        cv2.rectangle(
+            img=image_cv2,
+            pt1=(text_x1, text_y1),
+            pt2=(text_x2, text_y2),
+            color=(36, 255, 12),
+            thickness=-1,
+        )
+
         cv2.putText(
             img=image_cv2,
-            text=cls,
-            org=(int(x1), int(y1) - 10),
-            fontFace=cv2.FONT_HERSHEY_SIMPLEX,
-            fontScale=0.4,
-            color=(36, 255, 12),
-            thickness=1
+            text=cl,
+            org=(text_x1, text_y2),
+            fontFace=font_face,
+            fontScale=font_scale,
+            color=(0, 0, 0),
+            thickness=font_thickness,
         )
 
     return Image.fromarray(image_cv2.astype(np.uint8))

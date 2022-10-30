@@ -26,6 +26,36 @@ pascalvoc_classes = [
     "train",
     "tvmonitor",
 ]
+
 pascalvoc_image_file_extension = "jpg"
 # pascalvoc_train_images_count = 5717
 # pascalvoc_val_images_count = 5823
+
+pascalvoc_class_groups = {
+    "vehicles": [
+        "aeroplane",
+        "bicycle",
+        "boat",
+        "bus",
+        "car",
+        "motorbike",
+        "train",
+    ],
+    "animals": [
+        "bird",
+        "cat",
+        "cow",
+        "dog",
+        "horse",
+        "person",
+        "sheep",
+    ],
+    "house_objects": [
+        "bottle",
+        "chair",
+        "diningtable",
+        "pottedplant",
+        "sofa",
+        "tvmonitor",
+    ]
+}

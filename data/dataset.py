@@ -2,7 +2,7 @@ from glob import glob
 from logging import root
 from PIL import Image
 from PIL.Image import Image as PILImage
-from typing import List
+from typing import Dict, List
 from dataclasses import dataclass
 import random
 from data.datasets.kitti.metadata import (
