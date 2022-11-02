@@ -59,3 +59,9 @@ pascalvoc_class_groups = {
         "tvmonitor",
     ]
 }
+
+# experiments:
+#   1 head
+#   3 heads
+#   20 heads (1 for each class)
+#   random heads

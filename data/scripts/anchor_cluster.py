@@ -80,14 +80,14 @@ def kmeans_iou_dist(bboxes: Tensor, k: int, iters=3, verbose=True) -> Tuple[Tens
                 print(f"{n_changed} points changed cluster groups ({(n_changed / n * 100):2f}%)\n")
 
             if n_changed < int(n * 0.005):
+                # centroids
+                centroids_wh = centroid_boxes[:, 2:]
+
                 # mean iou
                 ious = torch.tensor([box_iou(bbox.unsqueeze(0), centroid_boxes[cluster_idx].unsqueeze(0)).item()
                                      for bbox, cluster_idx
                                      in zip(bboxes, new_clustering)])
                 mean_iou = torch.mean(ious)
-
-                # centroids
-                centroids_wh = centroid_boxes[:, 2:]
 
                 if mean_iou > best_mean_iou: 
                     best_centroids_wh = centroids_wh
@@ -120,8 +120,11 @@ def run_group_clustering(bboxes: Tensor, ks: List[int], group_name: str, class_g
 
 
 if __name__ == "__main__":
-    dataset_name = "kitti"
-    class_groups = kitti_class_groups
+    # dataset_name = "kitti"
+    # class_groups = kitti_class_groups
+
+    dataset_name = "pascalvoc"
+    class_groups = pascalvoc_class_groups
 
     dataset = Dataset.from_name_and_type(dataset_name, dataset_type="train", shuffle=False)
     classes = dataset.classes
@@ -131,11 +134,20 @@ if __name__ == "__main__":
         for group_name, class_names in class_groups.items()
     }
 
-    for idx, (group_name, class_group_i) in enumerate(class_groups_i.items()):
-        run_group_clustering(
-            bboxes=bboxes,
-            ks=[3, 4, 5, 6, 7, 8, 9],
-            group_name=group_name,
-            class_group_i=class_group_i,
-            dataset_name=dataset_name,
-        )
+    # for idx, (group_name, class_group_i) in enumerate(class_groups_i.items()):
+    #     run_group_clustering(
+    #         bboxes=bboxes,
+    #         ks=[3, 4, 5, 6, 7, 8, 9],
+    #         group_name=group_name,
+    #         class_group_i=class_group_i,
+    #         dataset_name=dataset_name,
+    #     )
+
+
+    run_group_clustering(
+        bboxes=bboxes,
+        ks=[3, 4, 5, 6, 7, 8, 9],
+        group_name="house_objects",
+        class_group_i=[dataset.classes.index(name) for name in pascalvoc_class_groups["house_objects"]],
+        dataset_name=dataset_name,
+    )
