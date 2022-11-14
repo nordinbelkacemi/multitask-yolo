@@ -58,7 +58,7 @@ def get_labeled_img(image: PILImage, labels: List[ObjectLabel], classes: List[st
     for label in labels:
         cl: str = classes[label.cls]
         [x1, y1, x2, y2] = yolo_bbox_to_x1y1x2y2(
-            scale_bbox(label.get_bbox(), (scale, scale)),
+            scale_bbox(label.bbox, (scale, scale)),
             Resolution(w, h)
         )
 

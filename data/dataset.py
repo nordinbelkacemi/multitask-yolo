@@ -1,18 +1,10 @@
 from glob import glob
-from logging import root
 from PIL import Image
 from PIL.Image import Image as PILImage
 from typing import Dict, List
 from dataclasses import dataclass
 import random
-from data.datasets.kitti.metadata import (
-    kitti_root_path,
-    kitti_classes,
-)
-from data.datasets.pascalvoc.metadata import (
-    pascalvoc_root_path,
-    pascalvoc_classes,
-)
+from abc import ABC, abstractmethod
 
 
 image_file_extension = "jpg"
@@ -29,7 +21,7 @@ class ObjectLabel:
     w: float
     h: float
 
-
+    @property
     def get_bbox(self) -> List[float]:
         return [self.x, self.y, self.w, self.h]
 
@@ -41,13 +33,41 @@ class DatasetItem:
     image: PILImage
 
 
-class Dataset:
-    def __init__(self, root_path: str, classes: List[str], shuffle=True):
-        self.root_path = root_path
-        self.classes = classes
-        self.ids = [f"{i:06}" for i in range(len(glob(f"{root_path}/*.jpg")))]
+class Dataset(ABC):
+    def __init__(self, dataset_type: str, shuffle: bool) -> None:
+        """
+        Args:
+            dataset_type (str): `train` or `val`
+            shuffle (bool): Wether items get shuffled or not
+        """
+        super().__init__()
+        self.ids = [f"{i:06}" for i in range(len(glob(f"{self.root_path}/*.jpg")))]
         if shuffle:
             random.shuffle(self.ids)
+
+
+    @property
+    @abstractmethod
+    def name(self) -> str:
+        pass
+
+
+    @property
+    @abstractmethod
+    def root_path(self) -> str:
+        pass
+
+    
+    @property
+    @abstractmethod
+    def classes(self) -> List[str]:
+        pass
+
+
+    @property
+    @abstractmethod
+    def class_groups(self) -> Dict[str, List[str]]:
+        pass
 
  
     def __len__(self) -> int:      
@@ -75,32 +95,3 @@ class Dataset:
                 )
         
         return DatasetItem(id=id, image=image, labels=labels)
-    
-
-    @classmethod
-    def from_name_and_type(cls, dataset_name: str, dataset_type: str, shuffle=True):
-        """
-        Creates a dataset from a dataset name
-
-        Args:
-            dataset_name (str): `"pascalvoc"` or `"kitti"`
-            dataset_type (str): `"train"` or `"val"`
-            shuffle (bool): Wether the dataset items are shuffled on initialization or not
-        
-        Returns:
-            (Dataset) The resulting dataset
-        """
-        if dataset_name == "pascalvoc":
-            return Dataset(
-                root_path=f"{pascalvoc_root_path}/{dataset_type}",
-                classes=pascalvoc_classes,
-                shuffle=shuffle,
-            )
-
-        if dataset_name == "kitti":
-            return Dataset(
-                root_path=f"{kitti_root_path}/{dataset_type}",
-                classes=kitti_classes,
-                shuffle=shuffle,
-            )
-

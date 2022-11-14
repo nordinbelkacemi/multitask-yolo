@@ -28,15 +28,26 @@ from data.datasets.dataset_converter_script import (
 )
 import random
 from glob import glob
-from data.datasets.kitti.metadata import (
-    original_kitti_labels_root,
-    original_kitti_images_root,
-    kitti_root_path,
-    kitti_classes,
-    kitti_image_file_extension,
-)
 
+# source
+src_kitti_root_path = f"/root/workdir/datasets/kitti"
+src_kitti_images_root_path = f"{src_kitti_root_path}/training/image_2"
+src_kitti_labels_root_path = f"{src_kitti_root_path}/training/label_2"
 
+# destination
+dst_kitti_root_path = "/root/workdir/yolo_datasets/kitti"
+
+kitti_classes = [
+    "Car",
+    "Cyclist",
+    "DontCare",
+    "Misc",
+    "Pedestrian",
+    "Person_sitting",
+    "Tram",
+    "Truck",
+    "Van",
+]
 
 class KITTIToYOLOConverterScript(DatasetConverterScript):
     def __init__(self) -> None:
@@ -44,7 +55,7 @@ class KITTIToYOLOConverterScript(DatasetConverterScript):
 
 
     def _get_dataset_label_paths(self) -> Dict[str, List[str]]:
-        all_label_paths = glob(f"{original_kitti_labels_root}/*.txt")
+        all_label_paths = glob(f"{src_kitti_labels_root_path}/*.txt")
         num_files = len(all_label_paths)
         random.shuffle(all_label_paths)
 
@@ -69,8 +80,8 @@ class KITTIToYOLOConverterScript(DatasetConverterScript):
     def _get_image_file_path_from_label_file_path(self, label_file_path: str) -> str:
         return get_image_file_path_from_label_file_path_default(
             label_file_path=label_file_path,
-            dataset_images_root_path=original_kitti_images_root,
-            image_file_extension=kitti_image_file_extension
+            dataset_images_root_path=src_kitti_images_root_path,
+            image_file_extension="png"
         )
 
     def _get_labels(self, file_path: str) -> List[List]:
@@ -100,5 +111,5 @@ class KITTIToYOLOConverterScript(DatasetConverterScript):
 
 if __name__ == "__main__":
     KITTIToYOLOConverterScript().run(
-        dst=kitti_root_path
+        dst=dst_kitti_root_path
     )
