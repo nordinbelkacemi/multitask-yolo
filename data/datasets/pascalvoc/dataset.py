@@ -46,4 +46,4 @@ class PascalVOCDataset(Dataset):
 
     @property
     def class_groups(self) -> Dict[str, List[str]]:
-        return class_groups_3_heads
+        return cgs_logic_sep

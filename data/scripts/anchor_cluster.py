@@ -1,6 +1,5 @@
 import os
 from typing import List, Tuple
-from data.dataset import Dataset
 import numpy as np
 from matplotlib import pyplot as plt
 from data.datasets.datasets import *

@@ -10,4 +10,4 @@ if __name__ == "__main__":
     # x = torch.randn(1, 3, 640, 640).to(device)
     # y = m(x)
     # print(y)
-    torchinfo.summary(m, (3, 640, 640), batch_dim=0, col_names = ("input_size", "output_size", "num_params", "kernel_size", "mult_adds"), verbose = 1, device="cpu")
+    torchinfo.summary(m, (3, 416, 416), batch_dim=0, col_names = ("input_size", "output_size", "num_params", "kernel_size", "mult_adds"), verbose = 1, device="cpu")

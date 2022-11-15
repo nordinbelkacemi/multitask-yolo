@@ -1,4 +1,4 @@
-class_groups_1_head = {
+cgs_all_together = {
     "all": [
         "aeroplane",
         "bicycle",
@@ -23,7 +23,7 @@ class_groups_1_head = {
     ]
 }
 
-class_groups_3_heads = {
+cgs_logic_sep = {
     "vehicles": [
         "aeroplane",
         "bicycle",
@@ -52,6 +52,6 @@ class_groups_3_heads = {
     ]
 }
 
-class_groups_20_heads = {
-    class_name: [class_name] for class_name in class_groups_1_head["all"]
+cgs_all_sep = {
+    class_name: [class_name] for class_name in cgs_all_together["all"]
 }
