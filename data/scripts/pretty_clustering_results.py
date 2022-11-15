@@ -1,14 +1,14 @@
 import matplotlib.pyplot as plt
-from data.datasets.pascalvoc.metadata import *
-from data.datasets.kitti.metadata import *
+from data.datasets.datasets import *
+from data.datasets.kitti import *
 
 if __name__ == "__main__":
-    dataset_name = "kitti"
-    class_groups = kitti_class_groups
+    dataset = PascalVOCDataset(dataset_type="train", shuffle=False)
+    class_groups = dataset.class_groups
     n_groups = len(class_groups.items())
 
     fig, axs = plt.subplots(1, n_groups)
-    fig.suptitle(dataset_name, fontsize=16)
+    fig.suptitle(dataset.name, fontsize=16)
     fig.set_figwidth(15)
     fig.set_figheight(4)
 
@@ -21,11 +21,11 @@ if __name__ == "__main__":
         axs[i].set_xlabel("k")
 
         y = []
-        with open(f"./out/{dataset_name}_{group_name}_clustering.txt", "r") as f:
+        with open(f"./out/{dataset.name}_{group_name}_clustering.txt", "r") as f:
             for line in f:
                 mean_iou = float(line.split(" ")[-1])
                 y.append(mean_iou)
         axs[i].plot(x, y, "-o")
     fig.tight_layout()
     
-    fig.savefig(f"./out/{dataset_name}_clustering_results.jpg")
+    fig.savefig(f"./out/{dataset.name}_clustering_results.jpg")
