@@ -1,3 +1,4 @@
+import os
 from typing import List, Tuple
 from data.dataset import Dataset
 import numpy as np
@@ -47,7 +48,7 @@ def get_clustering(bboxes: Tensor, centroid_boxes: Tensor) -> Tensor:
     ])
 
 
-def kmeans_iou_dist(bboxes: Tensor, k: int, iters=3, verbose=True) -> Tuple[Tensor, float]:
+def kmeans_iou_dist(bboxes: Tensor, k: int, iters=5, verbose=True) -> Tuple[Tensor, float]:
     """
     Performs k means clustering for `iters` iterations with k clusters.
 
@@ -100,14 +101,27 @@ def kmeans_iou_dist(bboxes: Tensor, k: int, iters=3, verbose=True) -> Tuple[Tens
     return best_centroids_wh, best_mean_iou
 
 
-def run_group_clustering(bboxes: Tensor, ks: List[int], group_name: str, class_group_i: List[int], dataset_name: str) -> None:
+def group_cluster_and_save(
+    bboxes: Tensor,
+    ks: List[int],
+    class_group_i: List[int],
+    dataset_name: str,
+    grouping_name: str,
+    group_name: str,
+) -> None:
     print(group_name)
     group_bboxes = filter_bboxes(bboxes, class_group_i)
     group_bboxes_origin = bboxes_to_origin(group_bboxes[:, 1:])
 
     fig, ax = plt.subplots()
+    fig.suptitle(f"{group_name}")
+    ax.set_xlabel("k")
+    ax.set_ylabel("mean IoU")
     y = []
-    with open(f"./out/{dataset_name}_{group_name}_clustering.txt", "a") as f:
+    if not os.path.isdir(f"./data/datasets/{dataset_name}/{grouping_name}"):
+        os.makedirs(f"./data/datasets/{dataset_name}/{grouping_name}")
+
+    with open(f"./data/datasets/{dataset_name}/{grouping_name}/{group_name}_clustering.txt", "a") as f:
         for k in ks:
             print(f"k={k}")
             normalized_anchors, mean_iou = kmeans_iou_dist(group_bboxes_origin, k, verbose=True)
@@ -115,7 +129,7 @@ def run_group_clustering(bboxes: Tensor, ks: List[int], group_name: str, class_g
             f.write(f"{k} {normalized_anchors.tolist()} {mean_iou}\n")
             print(f"anchors={normalized_anchors.tolist()}, mean_iou={mean_iou}")
     ax.plot(ks, y, "-o")
-    fig.savefig(f"./out/{dataset_name}_{group_name}_clustering.jpg")
+    fig.savefig(f"./data/datasets/{dataset_name}/{grouping_name}/{group_name}_clustering.jpg")
 
 
 if __name__ == "__main__":
@@ -127,10 +141,11 @@ if __name__ == "__main__":
     }
 
     for idx, (group_name, class_group_i) in enumerate(class_groups_i.items()):
-        run_group_clustering(
+        group_cluster_and_save(
             bboxes=bboxes,
             ks=[3, 4, 5, 6, 7, 8, 9],
-            group_name=group_name,
             class_group_i=class_group_i,
             dataset_name=dataset.name,
+            grouping_name=f"{dataset.class_groups=}".split("=")[0],
+            group_name=group_name,
         )

@@ -29,13 +29,17 @@ from data.datasets.dataset_converter_script import (
     DatasetConverterScript,
     get_image_file_path_from_label_file_path_default,
 )
+import wget
+from tarfile import TarFile
+import os
+import config.config as cfg
 
 # source
-src_pascalvoc_root_path = "/root/workdir/datasets/pascalvoc/VOCdevkit/VOC2012"
+src_pascalvoc_root_path = f"{cfg.datasets_root_path}/pascalvoc/VOCdevkit/VOC2012"
 src_pascalvoc_images_root_path = f"{src_pascalvoc_root_path}/JPEGImages"
 
 # destination
-dst_pascalvoc_root_path = "root/workdir/yolo_datasets/pascalvoc"
+dst_pascalvoc_root_path = f"{cfg.yolo_datasets_root_path}/pascalvoc"
 
 pascalvoc_classes = [
     "aeroplane",
@@ -150,6 +154,23 @@ class PascalVOCToYOLOConverterScript(DatasetConverterScript):
         
 
 if __name__ == "__main__":
+    # Downloading dataset into the datasets root path (specified in config)
+    if cfg.datasets_root_path is None:
+        raise RuntimeError("You have not set your datasets root path (you can do so in the config file (config/config.py)")
+    
+    if not os.path.isdir(f"{cfg.datasets_root_path}/pascalvoc"):
+        os.mkdir(f"{cfg.datasets_root_path}/pascalvoc")
+
+    if not os.path.isfile(f"{cfg.datasets_root_path}/VOCtrainval_11-May-2012.tar"):
+        print(f"Downloading dataset into {cfg.datasets_root_path}...")
+        wget.download(url="http://host.robots.ox.ac.uk/pascal/VOC/voc2012/VOCtrainval_11-May-2012.tar", out=f"{cfg.datasets_root_path}")
+    
+    if len(os.listdir(f"{cfg.datasets_root_path}/pascalvoc")) == 0:
+        print(f"\nExtracting files into {cfg.datasets_root_path}/pascalvoc...")
+        f = TarFile.open(f"{cfg.datasets_root_path}/VOCtrainval_11-May-2012.tar")
+        f.extractall(f"{cfg.datasets_root_path}/pascalvoc")
+    
+    # Conversion to train and val folder both of which contain all relevant images and yolo formatted labels
     PascalVOCToYOLOConverterScript().run(
         dst=dst_pascalvoc_root_path
     )
