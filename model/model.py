@@ -66,7 +66,7 @@ class Head(nn.Module):
         x9 = self.c3_2(torch.cat([x4, self.cv2(x8)], dim=1))
         return [x7, x8, x9]
     
-class YOLOv5Net(nn.Module):
+class YOLOv5(nn.Module):
     def __init__(self, classes: List[str]):
         super().__init__()
         self.nc = len(classes)
@@ -91,3 +91,7 @@ class YOLOv5Net(nn.Module):
             [ys, ym, yl] = [cv(x) for cv, x in zip(dtr, [x7, x8, x9])]
             outputs.append([ys, ym, yl])
         return outputs
+
+
+class MultitaskYOLO(nn.Module):
+    def __init__(self, class_groups: Dict[str, List[str]]),

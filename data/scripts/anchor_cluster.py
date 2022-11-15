@@ -1,5 +1,4 @@
 from typing import List, Tuple
-from data.dataset import Dataset
 import numpy as np
 from matplotlib import pyplot as plt
 from data.datasets.datasets import *
@@ -100,7 +99,7 @@ def kmeans_iou_dist(bboxes: Tensor, k: int, iters=3, verbose=True) -> Tuple[Tens
     return best_centroids_wh, best_mean_iou
 
 
-def run_group_clustering(bboxes: Tensor, ks: List[int], group_name: str, class_group_i: List[int], dataset_name: str) -> None:
+def run_group_clustering(bboxes: Tensor, ks: List[int], group_name: str, class_group_i: List[int], dataset_name: str, target_path: str) -> None:
     print(group_name)
     group_bboxes = filter_bboxes(bboxes, class_group_i)
     group_bboxes_origin = bboxes_to_origin(group_bboxes[:, 1:])
