@@ -1,4 +1,4 @@
-from typing import List
+from typing import Dict, List
 from model.common import *
 import config.config as cfg
 import torch.nn as nn
@@ -94,4 +94,10 @@ class YOLOv5(nn.Module):
 
 
 class MultitaskYOLO(nn.Module):
-    def __init__(self, class_groups: Dict[str, List[str]]),
+    def __init__(self, class_groups: Dict[str, List[str]]) -> None:
+        self.detectors = {
+            group_name: nn.ModuleList([
+                nn.Conv2d
+            ])
+            for group_name, classes in class_groups.items()
+        }
