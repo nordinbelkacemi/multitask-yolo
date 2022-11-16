@@ -1,6 +1,7 @@
 from typing import Dict, List
 from data.dataset import Dataset
 from data.datasets.pascalvoc.class_grouping import *
+import config.config as cfg
 
 
 class PascalVOCDataset(Dataset):
@@ -11,11 +12,6 @@ class PascalVOCDataset(Dataset):
     @property
     def name(self) -> str:
         return "pascalvoc"
-
-
-    @property
-    def root_path(self) -> str:
-        return "/root/workdir/yolo_datasets/pascalvoc"
     
 
     @property
@@ -45,5 +41,5 @@ class PascalVOCDataset(Dataset):
 
 
     @property
-    def class_groups(self) -> Dict[str, List[str]]:
-        return cgs_logic_sep
+    def class_grouping(self) -> ClassGrouping:
+        return cgs_logical_sep

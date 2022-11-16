@@ -6,6 +6,7 @@ from data.datasets.datasets import *
 from torchvision.ops.boxes import box_iou
 from torch import Tensor
 import torch
+import datetime
 from tqdm import tqdm
 
 
@@ -67,6 +68,7 @@ def kmeans_iou_dist(bboxes: Tensor, k: int, iters=5, verbose=True) -> Tuple[Tens
         centroid_boxes = bboxes[torch.randperm(n)[:k]]
         prev_clustering = get_clustering(bboxes, centroid_boxes)
         prev_masks = [prev_clustering == i for i in range(k)]
+        ni = 0
         while True:
             centroid_boxes = torch.tensor([torch.mean(bboxes[mask], dim=0).tolist()
                                            for mask
@@ -77,8 +79,9 @@ def kmeans_iou_dist(bboxes: Tensor, k: int, iters=5, verbose=True) -> Tuple[Tens
             if verbose:
                 print([f"{torch.count_nonzero(new_clustering == i)}" for i in range(k)])
                 print(f"{n_changed} points changed cluster groups ({(n_changed / n * 100):2f}%)\n")
+            ni += 1
 
-            if n_changed < int(n * 0.005):
+            if n_changed < int(n * 0.005) or ni > 100:
                 # centroids
                 centroids_wh = centroid_boxes[:, 2:]
 
@@ -96,6 +99,7 @@ def kmeans_iou_dist(bboxes: Tensor, k: int, iters=5, verbose=True) -> Tuple[Tens
             else:
                 prev_clustering = new_clustering
                 prev_masks = new_masks
+            
     
     return best_centroids_wh, best_mean_iou
 
@@ -113,14 +117,16 @@ def group_cluster_and_save(
     group_bboxes_origin = bboxes_to_origin(group_bboxes[:, 1:])
 
     fig, ax = plt.subplots()
-    fig.suptitle(f"{group_name}")
+    fig.suptitle(f"{dataset_name} - {group_name}")
     ax.set_xlabel("k")
     ax.set_ylabel("mean IoU")
     y = []
-    if not os.path.isdir(f"./data/datasets/{dataset_name}/{grouping_name}"):
-        os.makedirs(f"./data/datasets/{dataset_name}/{grouping_name}")
 
-    with open(f"./data/datasets/{dataset_name}/{grouping_name}/{group_name}_clustering.txt", "a") as f:
+    if not os.path.isdir(f"./data/datasets/{dataset_name}/anchors/{grouping_name}"):
+        os.makedirs(f"./data/datasets/{dataset_name}/anchors/{grouping_name}")
+
+    timestamp = int(datetime.datetime.now().timestamp())
+    with open(f"./data/datasets/{dataset_name}/anchors/{grouping_name}/{group_name}_clustering_{timestamp}.txt", "a") as f:
         for k in ks:
             print(f"k={k}")
             normalized_anchors, mean_iou = kmeans_iou_dist(group_bboxes_origin, k, verbose=True)
@@ -128,15 +134,16 @@ def group_cluster_and_save(
             f.write(f"{k} {normalized_anchors.tolist()} {mean_iou}\n")
             print(f"anchors={normalized_anchors.tolist()}, mean_iou={mean_iou}")
     ax.plot(ks, y, "-o")
-    fig.savefig(f"./data/datasets/{dataset_name}/{grouping_name}/{group_name}_clustering.jpg")
+    fig.savefig(
+        f"./data/datasets/{dataset_name}/anchors/{grouping_name}/{group_name}_clustering_{timestamp}.jpg")
 
 
 if __name__ == "__main__":
-    dataset = PascalVOCDataset(dataset_type="train", shuffle=False)
+    dataset = KITTIDataset(dataset_type="train", shuffle=False)
     bboxes = torch.from_numpy(np.loadtxt(f"{dataset.root_path}/anchor_data/{dataset.name}.txt"))
     class_groups_i = {
         group_name: [dataset.classes.index(name) for name in class_names]
-        for group_name, class_names in dataset.class_groups.items()
+        for group_name, class_names in dataset.class_grouping.grouping.items()
     }
 
     for idx, (group_name, class_group_i) in enumerate(class_groups_i.items()):
@@ -145,6 +152,6 @@ if __name__ == "__main__":
             ks=[3, 4, 5, 6, 7, 8, 9],
             class_group_i=class_group_i,
             dataset_name=dataset.name,
-            grouping_name=f"{dataset.class_groups=}".split("=")[0],
+            grouping_name=dataset.class_grouping.name,
             group_name=group_name,
         )

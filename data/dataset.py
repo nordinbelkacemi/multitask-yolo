@@ -1,13 +1,21 @@
 from glob import glob
 from PIL import Image
 from PIL.Image import Image as PILImage
-from typing import Dict, List
+from typing import Dict, List, Optional
 from dataclasses import dataclass
 import random
 from abc import ABC, abstractmethod
+import config.config as cfg
 
 
 image_file_extension = "jpg"
+
+
+@dataclass
+class ClassGrouping:
+    name: str
+    grouping: Dict[str, List[str]]
+    opt_ks: Optional[Dict[str, int]]
 
 
 @dataclass
@@ -41,20 +49,20 @@ class Dataset(ABC):
             shuffle (bool): Wether items get shuffled or not
         """
         super().__init__()
+        self.dataset_type = dataset_type
         self.ids = [f"{i:06}" for i in range(len(glob(f"{self.root_path}/*.jpg")))]
         if shuffle:
             random.shuffle(self.ids)
 
 
     @property
-    @abstractmethod
-    def name(self) -> str:
-        pass
+    def root_path(self) -> str:
+        return f"{cfg.yolo_datasets_root_path}/{self.name}/{self.dataset_type}"
 
 
     @property
     @abstractmethod
-    def root_path(self) -> str:
+    def name(self) -> str:
         pass
 
     
@@ -66,7 +74,7 @@ class Dataset(ABC):
 
     @property
     @abstractmethod
-    def class_groups(self) -> Dict[str, List[str]]:
+    def class_grouping(self) -> ClassGrouping:
         pass
 
  

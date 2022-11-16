@@ -1,13 +1,18 @@
 import os
 from tqdm import tqdm
 from data.dataloader import DataLoader
-from data.dataset import Dataset
 from data.datasets.datasets import *
+from data.dataset import Dataset
+from typing import List
 
 if __name__ == "__main__":
-    pascalvoc_dataset = PascalVOCDataset(dataset_type="train", shuffle=False)
-    kitti_dataset = KITTIDataset(dataset_type="train", shuffle=False)
-    for dataset in [pascalvoc_dataset, kitti_dataset]:
+    datasets: List[Dataset] = [
+        PascalVOCDataset(dataset_type="train", shuffle=False),
+        KITTIDataset(dataset_type="train", shuffle=False),
+    ]
+    
+    for dataset in datasets:
+        print(dataset.name, dataset.root_path)
         dataloader = DataLoader(dataset, batch_size=1)
 
         if not os.path.exists(f"{dataset.root_path}/anchor_data"):

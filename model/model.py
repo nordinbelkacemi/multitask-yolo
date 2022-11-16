@@ -75,17 +75,9 @@ class YOLOv5(nn.Module):
         self.neck = Neck()
         self.head = Head()
 
-        self.dtr = nn.ModuleList([
-            nn.Conv2d(cfg.mod_feat_0 * 4, (5 + self.nc) * 3, kernel_size=1, stride=1, padding=0),
-            nn.Conv2d(cfg.mod_feat_0 * 8, (5 + self.nc) * 3, kernel_size=1, stride=1, padding=0),
-            nn.Conv2d(cfg.mod_feat_0 * 16, (5 + self.nc) * 3, kernel_size=1, stride=1, padding=0),
-        ])
-
-        self.dtrs = [self.dtr for _ in range(20)]
-
     def forward(self, x):
         [x7, x8, x9] = self.head(*self.neck(*self.backbone(x)))
-
+        return [x7, x8, x9]
         outputs = []
         for dtr in self.dtrs:
             [ys, ym, yl] = [cv(x) for cv, x in zip(dtr, [x7, x8, x9])]
@@ -97,7 +89,9 @@ class MultitaskYOLO(nn.Module):
     def __init__(self, class_groups: Dict[str, List[str]]) -> None:
         self.detectors = {
             group_name: nn.ModuleList([
-                nn.Conv2d
+                nn.Conv2d(cfg.mod_feat_0 * 4, (5 + len(classes)) * 3, kernel_size=1, stride=1, padding=0),
+                nn.Conv2d(cfg.mod_feat_0 * 8, (5 + len(classes)) * 3, kernel_size=1, stride=1, padding=0),
+                nn.Conv2d(cfg.mod_feat_0 * 16, (5 + len(classes)) * 3, kernel_size=1, stride=1, padding=0),
             ])
             for group_name, classes in class_groups.items()
         }

@@ -10,12 +10,7 @@ class KITTIDataset(Dataset):
 
     @property
     def name(self) -> str:
-        "kitti"
-
-
-    @property
-    def root_path(self) -> str:
-        return "/root/workdir/yolo_datasets/kitti"
+        return "kitti"
 
 
     @property
@@ -34,5 +29,5 @@ class KITTIDataset(Dataset):
     
 
     @property
-    def class_groups(self) -> Dict[str, List[str]]:
-        return class_groups_1_head
+    def class_grouping(self) -> ClassGrouping:
+        return cgs_all_together

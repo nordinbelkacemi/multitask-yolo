@@ -1,12 +1,12 @@
 from data.datasets.datasets import *
-from model.model import YOLOv5Net
+from model.model import YOLOv5
 import torch
 import torchinfo
 
 if __name__ == "__main__":
     dataset = PascalVOCDataset(dataset_type="train", shuffle=False)
     # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    m = YOLOv5Net(dataset.classes)
+    m = YOLOv5(dataset.classes)
     # x = torch.randn(1, 3, 640, 640).to(device)
     # y = m(x)
     # print(y)
