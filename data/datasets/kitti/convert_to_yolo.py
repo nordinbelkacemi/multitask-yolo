@@ -33,14 +33,15 @@ import os
 import config.config as cfg
 from zipfile import ZipFile
 import shutil
+from config.dataset_locations import *
 
 # source
-src_kitti_root_path = f"{cfg.datasets_root_path}/kitti"
+src_kitti_root_path = f"{datasets_root_path}/kitti"
 src_kitti_images_root_path = f"{src_kitti_root_path}/training/image_2"
 src_kitti_labels_root_path = f"{src_kitti_root_path}/training/label_2"
 
 # destination
-dst_kitti_root_path = f"{cfg.yolo_datasets_root_path}/kitti"
+dst_kitti_root_path = f"{yolo_datasets_root_path}/kitti"
 
 kitti_classes = [
     "Car",
@@ -116,48 +117,48 @@ class KITTIToYOLOConverterScript(DatasetConverterScript):
 
 if __name__ == "__main__":
     # Downloading dataset into the datasets root path (specified in config)
-    if cfg.datasets_root_path is None:
+    if datasets_root_path is None:
         raise RuntimeError(
             "You have not set your datasets root path (you can do so in the config file (config/config.py)")
 
-    if not os.path.isdir(f"{cfg.datasets_root_path}/kitti"):
-        os.mkdir(f"{cfg.datasets_root_path}/kitti")
+    if not os.path.isdir(f"{datasets_root_path}/kitti"):
+        os.mkdir(f"{datasets_root_path}/kitti")
 
-    if not os.path.isfile(f"{cfg.datasets_root_path}/data_object_image_2.zip"):
-        print(f"Downloading dataset images into {cfg.datasets_root_path}...")
+    if not os.path.isfile(f"{datasets_root_path}/data_object_image_2.zip"):
+        print(f"Downloading dataset images into {datasets_root_path}...")
         wget.download(url="https://s3.eu-central-1.amazonaws.com/avg-kitti/data_object_image_2.zip",
-                      out=f"{cfg.datasets_root_path}")
+                      out=f"{datasets_root_path}")
     
-    if not os.path.isfile(f"{cfg.datasets_root_path}/data_object_label_2.zip"):
-        print(f"Downloading dataset labels into {cfg.datasets_root_path}...")
+    if not os.path.isfile(f"{datasets_root_path}/data_object_label_2.zip"):
+        print(f"Downloading dataset labels into {datasets_root_path}...")
         wget.download(url="https://s3.eu-central-1.amazonaws.com/avg-kitti/data_object_label_2.zip",
-                      out=f"{cfg.datasets_root_path}")
+                      out=f"{datasets_root_path}")
 
-    if len(os.listdir(f"{cfg.datasets_root_path}/kitti")) == 0:
-        print(f"\nExtracting image files into {cfg.datasets_root_path}...")
-        with ZipFile(f"{cfg.datasets_root_path}/data_object_image_2.zip", "r") as f:
-            f.extractall(f"{cfg.datasets_root_path}")
+    if len(os.listdir(f"{datasets_root_path}/kitti")) == 0:
+        print(f"\nExtracting image files into {datasets_root_path}...")
+        with ZipFile(f"{datasets_root_path}/data_object_image_2.zip", "r") as f:
+            f.extractall(f"{datasets_root_path}")
     
-    if len(os.listdir(f"{cfg.datasets_root_path}/kitti")) == 0:
-        print(f"\nExtracting label files into {cfg.datasets_root_path}...")
-        with ZipFile(f"{cfg.datasets_root_path}/data_object_label_2.zip", "r") as f:
-            f.extractall(f"{cfg.datasets_root_path}")
+    if len(os.listdir(f"{datasets_root_path}/kitti")) == 0:
+        print(f"\nExtracting label files into {datasets_root_path}...")
+        with ZipFile(f"{datasets_root_path}/data_object_label_2.zip", "r") as f:
+            f.extractall(f"{datasets_root_path}")
     
     
-    if not os.path.isdir(f"{cfg.datasets_root_path}/kitti/training"):
-        os.mkdir(f"{cfg.datasets_root_path}/kitti/training")
+    if not os.path.isdir(f"{datasets_root_path}/kitti/training"):
+        os.mkdir(f"{datasets_root_path}/kitti/training")
 
     shutil.move(
-        src=f"{cfg.datasets_root_path}/training/image_2",
-        dst=f"{cfg.datasets_root_path}/kitti/training",
+        src=f"{datasets_root_path}/training/image_2",
+        dst=f"{datasets_root_path}/kitti/training",
     )
     shutil.move(
-        src=f"{cfg.datasets_root_path}/training/label_2",
-        dst=f"{cfg.datasets_root_path}/kitti/training",
+        src=f"{datasets_root_path}/training/label_2",
+        dst=f"{datasets_root_path}/kitti/training",
     )
     
-    shutil.rmtree(f"{cfg.datasets_root_path}/testing")
-    shutil.rmtree(f"{cfg.datasets_root_path}/training")
+    shutil.rmtree(f"{datasets_root_path}/testing")
+    shutil.rmtree(f"{datasets_root_path}/training")
 
     KITTIToYOLOConverterScript().run(
         dst=dst_kitti_root_path

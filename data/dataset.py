@@ -7,6 +7,7 @@ import random
 from abc import ABC, abstractmethod
 import config.config as cfg
 import ast
+from config.dataset_locations import yolo_datasets_root_path
 
 
 image_file_extension = "jpg"
@@ -59,7 +60,7 @@ class Dataset(ABC):
 
     @property
     def root_path(self) -> str:
-        return f"{cfg.yolo_datasets_root_path}/{self.name}/{self.dataset_type}"
+        return f"{yolo_datasets_root_path}/{self.name}/{self.dataset_type}"
 
 
     @property

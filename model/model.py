@@ -90,7 +90,7 @@ class MultitaskYOLO(nn.Module):
     ) -> None:
         super().__init__()
         self.yolov5 = YOLOv5()
-        self.mt_heads = {
+        self.mt_heads = nn.ModuleDict({
             group_name: nn.ModuleList([
                 nn.Conv2d(
                     cfg.mod_feat_0 * 4,
@@ -110,7 +110,7 @@ class MultitaskYOLO(nn.Module):
             ])
             for (group_name, classes), group_anchors
             in zip(class_grouping.groups.items(), anchors.values())
-        }
+        })
     
     def forward(self, x) -> Dict[str, List[Tensor]]:
         [xs, xm, xl] = self.yolov5(x)
