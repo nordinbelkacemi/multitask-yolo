@@ -2,7 +2,7 @@ from data.dataset import ClassGrouping
 
 cgs_all_together = ClassGrouping(
     name="all_together",
-    grouping={
+    groups={
         "all": [
             "Car",
             "Cyclist",
@@ -15,13 +15,15 @@ cgs_all_together = ClassGrouping(
             "Van",
         ]
     },
-    opt_ks=None
+    anchor_nums={
+        "all": 7
+    }
 )
 
 
 cgs_logical_sep = ClassGrouping(
     name="logical_sep",
-    grouping={
+    groups={
         "vehicle": [
             "Car",
             "Truck",
@@ -38,7 +40,7 @@ cgs_logical_sep = ClassGrouping(
             "Misc",
         ]
     },
-    opt_ks={
+    anchor_nums={
         "vehicle": 9,
         "person": 8,
         "other": 7,
@@ -47,10 +49,10 @@ cgs_logical_sep = ClassGrouping(
 
 cgs_all_sep = ClassGrouping(
     name="all_sep",
-    grouping={
-        class_name: [class_name] for class_name in cgs_all_together.grouping["all"]
+    groups={
+        class_name: [class_name] for class_name in cgs_all_together.groups["all"]
     },
-    opt_ks={
+    anchor_nums={
         "Car": 9,
         "Cyclist": 9,
         "Misc": 7,

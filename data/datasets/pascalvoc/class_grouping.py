@@ -3,7 +3,7 @@ from data.dataset import ClassGrouping
 
 cgs_all_together = ClassGrouping(
     name="all_together",
-    grouping={
+    groups={
         "all": [
             "aeroplane",
             "bicycle",
@@ -27,14 +27,14 @@ cgs_all_together = ClassGrouping(
             "tvmonitor",
         ]
     },
-    opt_ks={
+    anchor_nums={
         "all": 6
     }
 )
 
 cgs_logical_sep = ClassGrouping(
     name="logical_sep",
-    grouping={
+    groups={
         "vehicles": [
             "aeroplane",
             "bicycle",
@@ -62,7 +62,7 @@ cgs_logical_sep = ClassGrouping(
             "tvmonitor",
         ]
     },
-    opt_ks={
+    anchor_nums={
         "vehicles": 6,
         "animals": 8,
         "house_objects": 9,
@@ -72,10 +72,10 @@ cgs_logical_sep = ClassGrouping(
 
 cgs_all_sep = ClassGrouping(
     name="all_sep",
-    grouping={
-        class_name: [class_name] for class_name in cgs_all_together.grouping["all"]
+    groups={
+        class_name: [class_name] for class_name in cgs_all_together.groups["all"]
     },
-    opt_ks={
+    anchor_nums={
         "aeroplane": 5,
         "bicycle": 9,
         "bird": 6,

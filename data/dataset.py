@@ -6,6 +6,7 @@ from dataclasses import dataclass
 import random
 from abc import ABC, abstractmethod
 import config.config as cfg
+import ast
 
 
 image_file_extension = "jpg"
@@ -14,8 +15,8 @@ image_file_extension = "jpg"
 @dataclass
 class ClassGrouping:
     name: str
-    grouping: Dict[str, List[str]]
-    opt_ks: Optional[Dict[str, int]]
+    groups: Dict[str, List[str]]
+    anchor_nums: Optional[Dict[str, int]] # can be None before running clustering.              
 
 
 @dataclass
@@ -30,7 +31,8 @@ class ObjectLabel:
     h: float
 
     @property
-    def get_bbox(self) -> List[float]:
+    def bbox(self) -> List[float]:
+        """Returns a [x, y, w, h] bbox"""
         return [self.x, self.y, self.w, self.h]
 
 
@@ -77,6 +79,21 @@ class Dataset(ABC):
     def class_grouping(self) -> ClassGrouping:
         pass
 
+
+    @property
+    def anchors(self) -> Dict[str, List[List[float]]]:
+        result = {group_name: None for group_name in self.class_grouping.groups.keys()}
+
+        for group_name in self.class_grouping.groups.keys():
+            file_name = glob(f"data/datasets/{self.name}/anchors/{self.class_grouping.name}/{group_name}_clustering_*.txt")[0]
+            n_a = self.class_grouping.anchor_nums[group_name]
+            with open(file_name, "r") as f:
+                for line in f:
+                    if int(line[0]) == n_a:
+                        result[group_name] = ast.literal_eval("".join(line.split(" ")[1:-1]))
+
+        return result
+
  
     def __len__(self) -> int:      
         return len(self.ids)
@@ -94,11 +111,11 @@ class Dataset(ABC):
                 line = line.split()
                 labels.append(
                     ObjectLabel(
-                        cls=int(line[0]),   # cls
-                        x=float(line[1]),   # x
-                        y=float(line[2]),   # y
-                        w=float(line[3]),   # w
-                        h=float(line[4]),   # h
+                        cls=int(line[0]),
+                        x=float(line[1]),
+                        y=float(line[2]),
+                        w=float(line[3]),
+                        h=float(line[4]),
                     )
                 )
         

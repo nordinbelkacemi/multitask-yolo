@@ -2,7 +2,9 @@ from typing import Dict, List
 from model.common import *
 import config.config as cfg
 import torch.nn as nn
-from data.dataset import Dataset
+from data.dataset import ClassGrouping
+from torch import Tensor
+
 
 class BackBone(nn.Module):
     def __init__(
@@ -25,7 +27,8 @@ class BackBone(nn.Module):
         x2 = self.c3_3(self.d4(x1))
         x3 = self.c3_4(self.d5(x2))
         return [x1, x2, x3]
-    
+
+
 class Neck(nn.Module):
     def __init__(
         self,
@@ -47,7 +50,8 @@ class Neck(nn.Module):
         x5 = self.cv2(self.c3_1(torch.cat([x2, self.up(x4)], dim=1)))
         x6 = self.c3_2(torch.cat([x1, self.up(x5)], dim=1))
         return [x6, x5, x4]
-    
+
+
 class Head(nn.Module):
     def __init__(
         self,
@@ -61,37 +65,61 @@ class Head(nn.Module):
         self.c3_2 = C3(ch_in=self.cv2.ch_out * 2, ch_out=self.cv2.ch_out * 2, n=2, shortcut=False, e=0.5)
     
     def forward(self, x6, x5, x4):
-        x7 = x6
-        x8 = self.c3_1(torch.cat([x5, self.cv1(x7)], dim=1))
-        x9 = self.c3_2(torch.cat([x4, self.cv2(x8)], dim=1))
-        return [x7, x8, x9]
+        xs = x6
+        xm = self.c3_1(torch.cat([x5, self.cv1(xs)], dim=1))
+        xl = self.c3_2(torch.cat([x4, self.cv2(xm)], dim=1))
+        return [xs, xm, xl]
     
 class YOLOv5(nn.Module):
-    def __init__(self, classes: List[str]):
+    def __init__(self):
         super().__init__()
-        self.nc = len(classes)
-
         self.backbone = BackBone()
         self.neck = Neck()
         self.head = Head()
 
     def forward(self, x):
-        [x7, x8, x9] = self.head(*self.neck(*self.backbone(x)))
-        return [x7, x8, x9]
-        outputs = []
-        for dtr in self.dtrs:
-            [ys, ym, yl] = [cv(x) for cv, x in zip(dtr, [x7, x8, x9])]
-            outputs.append([ys, ym, yl])
-        return outputs
+        [xs, xm, xl] = self.head(*self.neck(*self.backbone(x)))
+        return [xs, xm, xl]
 
 
 class MultitaskYOLO(nn.Module):
-    def __init__(self, class_groups: Dict[str, List[str]]) -> None:
-        self.detectors = {
+    def __init__(
+        self,
+        class_grouping: ClassGrouping,
+        anchors: Dict[str, List[List[float]]]
+    ) -> None:
+        super().__init__()
+        self.yolov5 = YOLOv5()
+        self.mt_heads = {
             group_name: nn.ModuleList([
-                nn.Conv2d(cfg.mod_feat_0 * 4, (5 + len(classes)) * 3, kernel_size=1, stride=1, padding=0),
-                nn.Conv2d(cfg.mod_feat_0 * 8, (5 + len(classes)) * 3, kernel_size=1, stride=1, padding=0),
-                nn.Conv2d(cfg.mod_feat_0 * 16, (5 + len(classes)) * 3, kernel_size=1, stride=1, padding=0),
+                nn.Conv2d(
+                    cfg.mod_feat_0 * 4,
+                    (5 + len(classes)) * len(get_anchor_masks(group_anchors)[0]),
+                    kernel_size=1, stride=1, padding=0
+                ),
+                nn.Conv2d(
+                    cfg.mod_feat_0 * 8,
+                    (5 + len(classes)) * len(get_anchor_masks(group_anchors)[1]),
+                    kernel_size=1, stride=1, padding=0
+                ),
+                nn.Conv2d(
+                    cfg.mod_feat_0 * 16,
+                    (5 + len(classes)) * len(get_anchor_masks(group_anchors)[2]),
+                    kernel_size=1, stride=1, padding=0
+                ),
             ])
-            for group_name, classes in class_groups.items()
+            for (group_name, classes), group_anchors
+            in zip(class_grouping.groups.items(), anchors.values())
         }
+    
+    def forward(self, x) -> Dict[str, List[Tensor]]:
+        [xs, xm, xl] = self.yolov5(x)
+        return {
+            group_name: [
+                mt_head[i](x_i)
+                for i, x_i
+                in enumerate([xs, xm, xl])
+            ]
+            for group_name, mt_head
+            in self.mt_heads.items()
+        }     

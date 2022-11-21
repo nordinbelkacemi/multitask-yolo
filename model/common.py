@@ -1,3 +1,4 @@
+from typing import List
 import torch
 import torch.nn as nn
 
@@ -66,3 +67,9 @@ class SPPF(nn.Module):
         y2 = self.m(y1)
         return self.cv2(torch.cat((x, y1, y2, self.m(y2)), 1))
 
+
+def get_anchor_masks(anchors: List[List[float]]) -> List[List[int]]:
+    result = [[], [], []]
+    for i in range(len(anchors)):
+        result[i % 3].append(i)
+    return result

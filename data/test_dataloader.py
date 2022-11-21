@@ -1,20 +1,15 @@
 from util.types import Resolution
-import config.config as cfg
 import torchvision.transforms as transforms
 from PIL import Image
-from PIL.Image import Image as PILImage
 from visualization.visualization import get_labeled_img
 
 from data.dataloader import DataLoader
-from data.dataset import Dataset
-from data.datasets.pascalvoc.metadata import *
+from data.datasets.datasets import *
 from visualization.visualization import unpad_labels
 
 if __name__ == "__main__":
-    batch_size = 4
-    shuffle = False
-    dataset = Dataset.from_name_and_type("pascalvoc", dataset_type="train", shuffle=shuffle)
-    dataloader = DataLoader(dataset, batch_size)
+    dataset = PascalVOCDataset(dataset_type="train", shuffle=False)
+    dataloader = DataLoader(dataset, 4)
     
 
     # ----------------------- Iterating over dataloader -----------------------
@@ -24,8 +19,6 @@ if __name__ == "__main__":
 
 
     # ---------------------- Visualizing a specific input batch ----------------------
-    assert(shuffle == False)
-
     batch_num = 1
     yolo_input = dataloader[batch_num - 1]
     for id, labels, image in zip(yolo_input.id_batch, yolo_input.label_batch, yolo_input.image_batch):

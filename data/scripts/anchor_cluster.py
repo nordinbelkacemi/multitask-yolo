@@ -143,7 +143,7 @@ if __name__ == "__main__":
     bboxes = torch.from_numpy(np.loadtxt(f"{dataset.root_path}/anchor_data/{dataset.name}.txt"))
     class_groups_i = {
         group_name: [dataset.classes.index(name) for name in class_names]
-        for group_name, class_names in dataset.class_grouping.grouping.items()
+        for group_name, class_names in dataset.class_grouping.groups.items()
     }
 
     for idx, (group_name, class_group_i) in enumerate(class_groups_i.items()):

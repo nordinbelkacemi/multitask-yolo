@@ -1,4 +1,3 @@
-import PIL
 from PIL import Image
 from PIL.Image import Image as PILImage
 from typing import List
@@ -10,6 +9,10 @@ from util.bbox_utils import scale_bbox, yolo_bbox_to_x1y1x2y2
 from util.types import Resolution
 import config.config as cfg
 from data.transforms import get_padding
+
+from torch import Tensor
+from matplotlib import pyplot as plt
+import datetime
 
 # unpad_labels(unpadded_resolution, )
 # get_labeled_img(image, labels, classes, scale)
@@ -103,3 +106,26 @@ def get_labeled_img(image: PILImage, labels: List[ObjectLabel], classes: List[st
         )
 
     return Image.fromarray(image_cv2.astype(np.uint8))
+
+def visualize_heatmap(target: Tensor, pred: Tensor, output_idx: int) -> None:
+    for img_idx in range(2):
+        fig = plt.figure(figsize=(6, 4))
+        w, h = 2, 2
+
+        anchor_targets = target[img_idx]
+        fig.suptitle(f"output id: {output_idx}")
+        for i, anchor_target in enumerate(anchor_targets):
+            confs = anchor_target[..., 4]
+            img = confs.cpu().detach().numpy()
+            fig.add_subplot(h, w, i + 1)
+            plt.imshow(img, vmin=0, vmax=1)
+
+        anchor_preds = pred[img_idx]
+        for i, anchor_pred in enumerate(anchor_preds):
+            confs = anchor_pred[..., 4]
+            img = confs.cpu().detach().numpy()
+            fig.add_subplot(h, w, w + i + 1)
+            plt.imshow(img, vmin=0, vmax=1)
+
+        timestamp = int(datetime.datetime.now().timestamp())
+        plt.savefig(f"out/heatmap_visu_{timestamp}")
