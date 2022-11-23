@@ -11,6 +11,7 @@ from config.config import model_input_resolution as img_res
 from data.dataset import ObjectLabel, ClassGrouping
 from model.common import get_anchor_masks
 from visualization.visualization import visualize_heatmap
+from util.device import device
 
 
 class MeanLossBase(ABC):
@@ -39,6 +40,8 @@ class MeanBCELoss(MeanLossBase):
 class YOLOLoss(nn.Module):
     def __init__(self, classes: List[str], class_group: List[str], all_anchors: List[List[int]], anchor_masks: List[List[int]]):
         super().__init__()
+        self.device = device
+
         self.strides = [8, 16, 32]
 
         self.class_indices = [classes.index(class_name) for class_name in class_group]
@@ -56,19 +59,19 @@ class YOLOLoss(nn.Module):
         self.masked_anchors, self.ref_anchors, self.grid_x, self.grid_y, self.anchor_w, self.anchor_h = [], [], [], [], [], []
 
         for stride, mask in zip(self.strides, self.anchor_masks):
-            all_anchors_grid = torch.tensor([(w / stride, h / stride) for w, h in self.all_anchors])
+            all_anchors_grid = torch.tensor([(w / stride, h / stride) for w, h in self.all_anchors]).to(self.device)
             ref_anchors = torch.cat([
-                torch.zeros_like(all_anchors_grid),
+                torch.zeros_like(all_anchors_grid).to(self.device),
                 all_anchors_grid,
             ], dim=1)
             masked_anchors = all_anchors_grid[mask]
 
             na = len(mask)
             ng = img_res.w // stride
-            grid_x = torch.arange(ng, dtype=torch.float).repeat(na, ng, 1)
-            grid_y = torch.arange(ng, dtype=torch.float).repeat(na, ng, 1).permute(0, 2, 1)
-            anchor_w = masked_anchors[:, 0].repeat(ng, ng, 1).permute(2, 0, 1)
-            anchor_h = masked_anchors[:, 1].repeat(ng, ng, 1).permute(2, 0, 1)
+            grid_x = torch.arange(ng, dtype=torch.float).repeat(na, ng, 1).to(self.device)
+            grid_y = torch.arange(ng, dtype=torch.float).repeat(na, ng, 1).permute(0, 2, 1).to(self.device)
+            anchor_w = masked_anchors[:, 0].repeat(ng, ng, 1).permute(2, 0, 1).to(self.device)
+            anchor_h = masked_anchors[:, 1].repeat(ng, ng, 1).permute(2, 0, 1).to(self.device)
 
             self.masked_anchors.append(masked_anchors)
             self.ref_anchors.append(ref_anchors)
@@ -94,7 +97,7 @@ class YOLOLoss(nn.Module):
 
         obj_mask = torch.zeros(nb, na, ng, ng)
         noobj_mask = torch.ones(nb, na, ng, ng)
-        target = torch.zeros(nb, na, ng, ng, nch)
+        target = torch.zeros(nb, na, ng, ng, nch).to(self.device)
 
         n_matched_objs = 0
         n_correct = 0
@@ -104,19 +107,26 @@ class YOLOLoss(nn.Module):
             if n == 0:
                 continue
 
-            gt = torch.tensor([l.bbox for l in obj_labels]) * img_res.w / stride    # (n, 4)
-            ref_gt = torch.cat([                                                    # (n, 4)
-                torch.zeros(n, 2),
+            gt = torch.tensor([
+                l.bbox
+                for l
+                in obj_labels]
+            ).to(self.device) * img_res.w / stride                          # (n, 4)
+            ref_gt = torch.cat([                                            # (n, 4)
+                torch.zeros(n, 2).to(self.device),
                 gt[:, 2:]
             ], dim=1)
-            gt_i = gt[:, 0].type(torch.int)                                         # (n)
-            gt_j = gt[:, 1].type(torch.int)                                         # (n)
+            gt_i = gt[:, 0].type(torch.int)                                 # (n)
+            gt_j = gt[:, 1].type(torch.int)                                 # (n)
 
-            anchor_ious_all = box_iou(ref_gt, ref_anchors)                          # (n, na_all)
-            anchor_ious_masked = anchor_ious_all[:, anchor_mask]                    # (n, na)
+            anchor_ious_all = box_iou(ref_gt, ref_anchors)                  # (n, na_all)
+            anchor_ious_masked = anchor_ious_all[:, anchor_mask]            # (n, na)
 
-            best_n_all = anchor_ious_all.argmax(dim = 1)                            # (n)
-            best_n_mask = torch.isin(best_n_all, torch.tensor(anchor_mask))         # (n)
+            best_n_all = anchor_ious_all.argmax(dim = 1)                    # (n)
+            best_n_mask = torch.isin(                                       # (n)
+                best_n_all,
+                torch.tensor(anchor_mask).to(self.device)
+            )
             
             n = best_n_mask.sum().item()
             n_matched_objs += n
@@ -246,7 +256,7 @@ class MultitaskYOLOLoss(nn.Module):
     ) -> None:
         super().__init__()
         self.class_grouping = class_grouping
-        self.loss_layers = {
+        self.loss_layers = nn.ModuleDict({
             group_name: YOLOLoss(
                 classes,
                 class_group,
@@ -258,7 +268,7 @@ class MultitaskYOLOLoss(nn.Module):
                 class_grouping.groups.items(),
                 anchors.values(),
             )
-        }
+        })
     
     def forward(
         self,
