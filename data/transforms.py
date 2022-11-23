@@ -61,7 +61,7 @@ class SquarePadAndResize(DatasetItemTransform):
         # Apply padding -> Square image + labels
         input_image_resolution = Resolution.from_image(dataset_item.image)
         padding = get_padding(input_image_resolution)
-        padded_image = F.pad(img=dataset_item.image, padding=padding)
+        padded_image = F.pad(img=dataset_item.image, padding=padding, fill=128)
         padded_resolution = Resolution.from_image(padded_image)
         padded_labels = [
             ObjectLabel(

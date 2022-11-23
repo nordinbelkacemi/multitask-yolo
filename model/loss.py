@@ -12,6 +12,7 @@ from data.dataset import ObjectLabel, ClassGrouping
 from model.common import get_anchor_masks
 from visualization.visualization import visualize_heatmap
 from util.device import device
+import config.config as cfg
 
 
 class MeanLossBase(ABC):
@@ -183,7 +184,7 @@ class YOLOLoss(nn.Module):
                     obj_score = pred[b, a, j, i, 4]
                     pred_cls = torch.argmax(pred[b, a, j, i, 5:])
                     t_cls = self.class_indices.index(obj_labels[obj_i].cls)
-                    if iou > 0.5 and obj_score > 0.5 and pred_cls == t_cls:
+                    if iou > cfg.eval_conf_thres and obj_score > 0.5 and pred_cls == t_cls:
                         n_correct += 1
 
         if visualize:
@@ -335,7 +336,7 @@ class MultitaskYOLOLoss(nn.Module):
     def forward(
         self,
         mt_output: Dict[str, List[Tensor]],
-        labels: Optional[List[List[ObjectLabel]]]
+        labels: Optional[List[List[ObjectLabel]]] = None,
     ) -> Dict[str, Tuple]:
         return {
             group_name: self.loss_layers[group_name](*mt_output[group_name], labels)
