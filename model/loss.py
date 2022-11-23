@@ -1,4 +1,4 @@
-from typing import Dict, List, Callable, Tuple
+from typing import Dict, List, Union, Optional, Tuple
 
 import torch
 import torch.nn as nn
@@ -12,6 +12,7 @@ from data.dataset import ObjectLabel, ClassGrouping
 from model.common import get_anchor_masks
 from visualization.visualization import visualize_heatmap
 from util.device import device
+import config.config as cfg
 
 
 class MeanLossBase(ABC):
@@ -38,13 +39,42 @@ class MeanBCELoss(MeanLossBase):
 
 
 class YOLOLoss(nn.Module):
-    def __init__(self, classes: List[str], class_group: List[str], all_anchors: List[List[int]], anchor_masks: List[List[int]]):
+    """
+
+    Forward method:
+        xs (Tensor): Tensor of shape (nb, na_s * (5 + nc), ng_s, ng_s), where na_s and ng_s are
+            the number of small anchors, and the number of grid cells in a given row/column for
+            small scale predictions respectively, eg. (4, 3 * (5 + nc), 80, 80)
+        xm (Tensor): Same as xs but for medium scale predictions; Tensor of shape 
+            (nb, na_m * (5 + nc), ng_m, ng_m), eg. (4, 2 * (5 + nc), 40, 40) if ng_s is 80.   
+        xl (Tensor): Same as xm but for large scale predictions; Tensor of shape
+            (nb, na_l * (5 + nc), ng_l, ng_l), eg. (4, 2 * (5 + nc), 20, 20) if ng_m is 40.
+        labels (Optional[List[List[ObjectLabel]]]): Ground truth object labels for every image
+            in batch.
+        eval (bool): Whether The loss function also needs to return precision recall curve data
+        visualize (bool): Whether confidence heatmaps are visualized
+
+    Returns:
+        Union[Dict,Tensor]: There are 3 cases.
+            1. Training: Dict containing loss values (total, xy, wh, conf and cls)
+            2. Eval: Dict containing loss values (total, xy, wh, conf and cls) and ranked
+                predictions. The latter is in the form of a tensor of shape (num_pred, 2)
+                (confidence and correctness for each prediction).
+            3. Inference: Tensor in the shape (nb, num_pred, nch). Here, nch is ()
+    """
+    def __init__(
+        self,
+        all_classes: List[str],
+        class_group: List[str],
+        all_anchors: List[List[int]],
+        anchor_masks: List[List[int]]
+    ) -> None:
         super().__init__()
         self.device = device
 
         self.strides = [8, 16, 32]
 
-        self.class_indices = [classes.index(class_name) for class_name in class_group]
+        self.class_indices = [all_classes.index(class_name) for class_name in class_group]
         self.nc = len(class_group)
         self.all_anchors = all_anchors
         self.anchor_masks = anchor_masks
@@ -142,7 +172,7 @@ class YOLOLoss(nn.Module):
                     noobj_mask[b, a, j, i] = 0
                     noobj_mask[b, anchor_ious_masked[obj_i] > self.ignore_thres, i, j] = 0
 
-                    target[b, a, j, i, 0:2] = torch.floor(gt_box[0:2])
+                    target[b, a, j, i, 0:2] = gt_box[0:2] - torch.floor(gt_box[0:2])
                     target[b, a, j, i, 2:4] = torch.log(gt_box[2:4] / masked_anchors[a] + 1e-16)
                     target[b, a, j, i, 4] = 1
                     target[b, a, j, i, 5 + self.class_indices.index(obj_labels[obj_i].cls)] = 1
@@ -154,7 +184,7 @@ class YOLOLoss(nn.Module):
                     obj_score = pred[b, a, j, i, 4]
                     pred_cls = torch.argmax(pred[b, a, j, i, 5:])
                     t_cls = self.class_indices.index(obj_labels[obj_i].cls)
-                    if iou > 0.5 and obj_score > 0.5 and pred_cls == t_cls:
+                    if iou > cfg.eval_conf_thres and obj_score > 0.5 and pred_cls == t_cls:
                         n_correct += 1
 
         if visualize:
@@ -162,13 +192,21 @@ class YOLOLoss(nn.Module):
 
         return obj_mask, noobj_mask, target, n_matched_objs, n_correct
 
-    def forward(self, xs, xm, xl, labels = None, visualize = False):
+    def forward(
+        self,
+        xs: Tensor,
+        xm: Tensor,
+        xl: Tensor,
+        labels = None,
+        eval = False,
+        visualize = False
+    ) -> Union[Dict,Tensor]:
         loss_xy = torch.zeros(3)
         loss_wh = torch.zeros(3)
         loss_conf = torch.zeros(3)
         loss_cls = torch.zeros(3)
-        preds = []
         n_labels_total, n_proposals_total, n_correct_total = 0, 0, 0
+        preds = []
         for idx, output in enumerate([xs, xm, xl]):
             nb = output.size(0)
             na = len(self.anchor_masks[idx])
@@ -207,25 +245,35 @@ class YOLOLoss(nn.Module):
 
                 obj_mask = obj_mask.type(torch.ByteTensor).bool()
                 noobj_mask = noobj_mask.type(torch.ByteTensor).bool()
-
+                
                 # x and y loss
-                loss_xy[idx] = self.lambda_coord * self.mse_loss(input = output[..., :2][obj_mask],
-                                                                    target = target[..., :2][obj_mask])
+                loss_xy[idx] = self.lambda_coord * self.mse_loss(
+                    input = output[..., :2][obj_mask],
+                    target = target[..., :2][obj_mask]
+                )
 
                 # width and height loss
-                loss_wh[idx] = self.lambda_coord * self.mse_loss(input = output[..., 2:4][obj_mask],
-                                                                    target = target[..., 2:4][obj_mask])
+                loss_wh[idx] = self.lambda_coord * self.mse_loss(
+                    input = output[..., 2:4][obj_mask],
+                    target = target[..., 2:4][obj_mask]
+                )
                 
                 # confidence loss
-                loss_obj = self.bce_loss(input = output[..., 4][obj_mask],
-                                        target = target[..., 4][obj_mask])
-                loss_noobj = self.bce_loss(input = output[..., 4][noobj_mask],
-                                        target = target[..., 4][noobj_mask])
+                loss_obj = self.bce_loss(
+                    input = output[..., 4][obj_mask],
+                    target = target[..., 4][obj_mask]
+                )
+                loss_noobj = self.bce_loss(
+                    input = output[..., 4][noobj_mask],
+                    target = target[..., 4][noobj_mask]
+                )
                 loss_conf[idx] = self.lambda_obj * loss_obj + self.lambda_noobj * loss_noobj
                 
                 # classification loss
-                loss_cls[idx] = self.bce_loss(input = output[..., 5:][obj_mask],
-                                                    target = target[..., 5:][obj_mask])
+                loss_cls[idx] = self.bce_loss(
+                    input = output[..., 5:][obj_mask],
+                    target = target[..., 5:][obj_mask]
+                )
 
                 # add num_labels, num_proposals, and num_correct to their respective totals
                 n_labels_total += n_matched_objs
@@ -234,7 +282,8 @@ class YOLOLoss(nn.Module):
             else:
                 pred[..., :4] = pred[..., :4] * self.strides[idx]
                 preds.append(pred.view(nb, -1, nch))
-        else:
+        
+        if labels is not None:
             loss = loss_xy.sum() + loss_wh.sum() + loss_conf.sum() + loss_cls.sum()
             return {
                 "total": loss,
@@ -246,19 +295,33 @@ class YOLOLoss(nn.Module):
                 "n_proposals": n_proposals_total,
                 "n_correct": n_correct_total
             }
+        else:
+            return torch.cat(preds, dim=1)
 
 class MultitaskYOLOLoss(nn.Module):
+    """
+    Constructor args:
+        all_classes (List[str]): All all_classes of a dataset
+        class_grouping (ClassGrouping): Class grouping of a dataset
+        anchors (Dict[str, List[List[float]]]): Anchors for each class group where each entry's key
+            is a class group's name and the value is a list of anchors ([[w, h], ..., [w, h]])
+    
+    Forward method args:
+        mt_output (Dict[str, List[Tensor]]): [ys, ym, yl] for each class group
+        labels (Optional[List[List[ObjectLabel]]]): A list of object labels for each image in batch
+            If this is None, no actual loss will be calculated; predictions will be returned instead   
+    """
     def __init__(
         self,
-        classes: List[str],
+        all_classes: List[str],
         class_grouping: ClassGrouping,
-        anchors: Dict[str, List[List[float]]],
+        anchors: Dict[str, List[List[int]]],
     ) -> None:
         super().__init__()
         self.class_grouping = class_grouping
         self.loss_layers = nn.ModuleDict({
             group_name: YOLOLoss(
-                classes,
+                all_classes,
                 class_group,
                 group_anchors,
                 get_anchor_masks(group_anchors)
@@ -273,7 +336,7 @@ class MultitaskYOLOLoss(nn.Module):
     def forward(
         self,
         mt_output: Dict[str, List[Tensor]],
-        labels: List[List[ObjectLabel]]
+        labels: Optional[List[List[ObjectLabel]]] = None,
     ) -> Dict[str, Tuple]:
         return {
             group_name: self.loss_layers[group_name](*mt_output[group_name], labels)

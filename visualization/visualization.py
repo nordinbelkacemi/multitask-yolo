@@ -14,8 +14,6 @@ from torch import Tensor
 from matplotlib import pyplot as plt
 import datetime
 
-# unpad_labels(unpadded_resolution, )
-# get_labeled_img(image, labels, classes, scale)
 
 def unpad_labels(unpadded_resolution: Resolution, padded_labels: List[ObjectLabel]) -> List[ObjectLabel]:
     """
@@ -55,21 +53,25 @@ def get_labeled_img(image: PILImage, labels: List[ObjectLabel], classes: List[st
 
     w, h = image.size
     image = image.resize((int(w * scale), int(h * scale)))
+    w, h = image.size
+
     image_cv2 = np.array(image, dtype=np.float32)
 
     # print(visualization_resolution)
     for label in labels:
         cl: str = classes[label.cls]
         [x1, y1, x2, y2] = yolo_bbox_to_x1y1x2y2(
-            scale_bbox(label.bbox, (scale, scale)),
+            label.bbox,
             Resolution(w, h)
         )
+        x1, y1 = max(0, int(x1)), max(0, int(y1))
+        x2, y2 = min(w, int(x2)), min(h, int(y2))
 
         # draw bounding box
         cv2.rectangle(
             img=image_cv2,
-            pt1=(int(x1), int(y1)),
-            pt2=(int(x2), int(y2)),
+            pt1=(x1, y1),
+            pt2=(x2, y2),
             color=(36, 255, 12),
             thickness=2
         )
@@ -82,10 +84,10 @@ def get_labeled_img(image: PILImage, labels: List[ObjectLabel], classes: List[st
 
         (text_w, text_h), _ = cv2.getTextSize(cl, font_face, font_scale, font_thickness)
 
-        text_x1, text_x2 = int(x1), int(x1 + text_w)
-        text_y1, text_y2 = int(y1 - text_h), int(y1)
+        text_x1, text_x2 = x1, int(x1 + text_w)
+        text_y1, text_y2 = int(y1 - text_h), y1
         if text_y1 < 0:
-            text_y1, text_y2 = int(y1), int(y1 + text_h)
+            text_y1, text_y2 = y1, int(y1 + text_h)
 
         cv2.rectangle(
             img=image_cv2,
@@ -106,6 +108,7 @@ def get_labeled_img(image: PILImage, labels: List[ObjectLabel], classes: List[st
         )
 
     return Image.fromarray(image_cv2.astype(np.uint8))
+
 
 def visualize_heatmap(target: Tensor, pred: Tensor, output_idx: int) -> None:
     for img_idx in range(2):
