@@ -5,6 +5,7 @@ import torch.nn as nn
 from data.dataset import ClassGrouping
 from torch import Tensor
 from model.loss import MultitaskYOLOLoss
+from util.device import device
 
 
 class BackBone(nn.Module):

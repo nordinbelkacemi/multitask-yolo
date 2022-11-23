@@ -3,14 +3,13 @@ from config.train_config import train_dataset
 from model.loss import MultitaskYOLOLoss
 from model.model import MultitaskYOLO
 from data.dataloader import DataLoader
+from util.device import device
 import datetime
 
 
 if __name__ == "__main__":
     dataset = train_dataset
     dataloader = DataLoader(dataset, 1)
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
 
     m = MultitaskYOLO(dataset.class_grouping, dataset.anchors).to(device)
     loss_fn = MultitaskYOLOLoss(dataset.classes, dataset.class_grouping, dataset.anchors).to(device)
