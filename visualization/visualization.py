@@ -14,8 +14,6 @@ from torch import Tensor
 from matplotlib import pyplot as plt
 import datetime
 
-# unpad_labels(unpadded_resolution, )
-# get_labeled_img(image, labels, classes, scale)
 
 def unpad_labels(unpadded_resolution: Resolution, padded_labels: List[ObjectLabel]) -> List[ObjectLabel]:
     """
@@ -106,6 +104,7 @@ def get_labeled_img(image: PILImage, labels: List[ObjectLabel], classes: List[st
         )
 
     return Image.fromarray(image_cv2.astype(np.uint8))
+
 
 def visualize_heatmap(target: Tensor, pred: Tensor, output_idx: int) -> None:
     for img_idx in range(2):

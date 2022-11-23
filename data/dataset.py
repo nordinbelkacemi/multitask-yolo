@@ -8,7 +8,7 @@ from abc import ABC, abstractmethod
 import config.config as cfg
 import ast
 from config.dataset_locations import yolo_datasets_root_path
-
+import torch
 
 image_file_extension = "jpg"
 
@@ -91,7 +91,11 @@ class Dataset(ABC):
             with open(file_name, "r") as f:
                 for line in f:
                     if int(line[0]) == n_a:
-                        result[group_name] = ast.literal_eval("".join(line.split(" ")[1:-1]))
+                        anchor_list = torch.tensor(ast.literal_eval("".join(line.split(" ")[1:-1])))
+                        result[group_name] = sorted(
+                            (anchor_list * cfg.model_input_resolution.w).type(torch.int).tolist(),
+                            key=lambda x: x[0] * x[1]
+                        )
 
         return result
 

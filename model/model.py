@@ -4,6 +4,7 @@ import config.config as cfg
 import torch.nn as nn
 from data.dataset import ClassGrouping
 from torch import Tensor
+from model.loss import MultitaskYOLOLoss
 
 
 class BackBone(nn.Module):
@@ -123,3 +124,38 @@ class MultitaskYOLO(nn.Module):
             for group_name, mt_head
             in self.mt_heads.items()
         }     
+
+
+def get_detections(
+    mt_output: Dict[str, List[Tensor]],
+    conf_thres: float,
+    all_classes: List[str],
+    class_grouping: ClassGrouping,
+    anchors: Dict[str, List[List[int]]],
+) -> Tensor:
+    """Merges predictions coming from several multitask heads into a single tensor that contains
+    all predictions whose confidence score is above conf_thes
+    
+    Args:
+        preds (Dict[str, Tensor]): {"group_1": detections_1, ..., "group_n": detections_n}, where
+            each detection tensor is of shape (nb, N, 5 + nc_group), and 
+            N = na_s * ng_s * ng_s + na_m * ng_m * ng_m + na_l * ng_l * ng_l
+        conf_thres (float): Confidence threshold below which predictions are left out of the result
+
+    Returns:
+        Tensor: Tensor of shape (nb, N, nch_all), where bn is the batch size, N is the number of
+        predictions above the confidence threshold and nch_all is 5 + nc_all (nc_all being the
+        number of all classes in the dataset)
+    """
+    loss_fn = MultitaskYOLOLoss(all_classes, class_grouping, anchors)
+    detections: Dict[str, Tensor] = loss_fn(mt_output)
+    nb, N, _ = detections.values()[0].size()
+    
+    for group_name, class_group in class_grouping.groups.items():
+        class_indices = [all_classes.index(class_name) for class_name in class_group]
+        c_output = torch.zeros(nb, N, 5 + len(all_classes))
+        group_detections = torch.cat([
+            detections[group_name][:, :, :5],
+            torch.zeros(nb, N, 5 + len(all_classes))
+        ], dim=-1)
+        detections[group_name][:, :, 5:] = 
