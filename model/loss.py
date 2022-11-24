@@ -12,6 +12,7 @@ from data.dataset import ObjectLabel, ClassGrouping
 from model.common import get_anchor_masks
 from visualization.visualization import visualize_heatmap
 from util.device import device
+from util.nms import nms
 import config.config as cfg
 
 
@@ -129,8 +130,12 @@ class YOLOLoss(nn.Module):
         noobj_mask = torch.ones(nb, na, ng, ng)
         target = torch.zeros(nb, na, ng, ng, nch).to(self.device)
 
-        n_matched_objs = 0
-        n_correct = 0
+        n_gt = [0 for _ in self.class_indices]
+        pred_results = torch.cat([
+            pred[..., 5:].argmax(-1).type(torch.float).view(nb, na, ng, ng, 1),     # cls
+            pred[..., 4].view(nb, na, ng, ng, 1),                                   # score
+            torch.zeros(nb, na, ng, ng).to(device).view(nb, na, ng, ng, 1)          # tp/fp
+        ], dim=-1)
         for b in range(nb):
             obj_labels = [l for l in labels[b] if l.cls in self.class_indices]
             n = len(obj_labels)
@@ -157,9 +162,12 @@ class YOLOLoss(nn.Module):
                 best_n_all,
                 torch.tensor(anchor_mask).to(self.device)
             )
+
+            for i, l in enumerate(obj_labels):
+                if best_n_mask[i]:
+                    n_gt[self.class_indices.index(l.cls)] += 1
             
             n = best_n_mask.sum().item()
-            n_matched_objs += n
             if n == 0:
                 continue
 
@@ -181,22 +189,28 @@ class YOLOLoss(nn.Module):
                         pred[b, a, j, i, :4].unsqueeze(0),
                         box_convert(gt[obj_i].unsqueeze(0), "cxcywh", "xyxy"),
                     )
-                    obj_score = pred[b, a, j, i, 4]
-                    pred_cls = torch.argmax(pred[b, a, j, i, 5:])
-                    t_cls = self.class_indices.index(obj_labels[obj_i].cls)
-                    if iou > cfg.eval_conf_thres and obj_score > 0.5 and pred_cls == t_cls:
-                        n_correct += 1
+
+                    pred_score = pred[b, a, j, i, 4]
+                    pred_class = torch.argmax(pred[b, a, j, i, 5:])
+                    target_class = self.class_indices.index(obj_labels[obj_i].cls)
+
+                    # if iou > cfg.eval_iou_match_threshold and pred_score > cfg.detection_score_threshold and pred_class == target_class:
+                    #     pred_results[b, a, j, i, 2] = 1
+                    pred_results[b, a, j, i, 2] = 1
+
+        pred_results = pred_results.view(-1, 3)
+        pred_results = pred_results[pred_results[:, 1] > cfg.detection_score_threshold]
 
         if visualize:
             visualize_heatmap(target, pred, output_idx)
 
-        return obj_mask, noobj_mask, target, n_matched_objs, n_correct
+        return obj_mask, noobj_mask, target, n_gt, pred_results
 
     def forward(
         self,
-        xs: Tensor,
-        xm: Tensor,
-        xl: Tensor,
+        ys: Tensor,
+        ym: Tensor,
+        yl: Tensor,
         labels = None,
         eval = False,
         visualize = False
@@ -205,13 +219,13 @@ class YOLOLoss(nn.Module):
         loss_wh = torch.zeros(3)
         loss_conf = torch.zeros(3)
         loss_cls = torch.zeros(3)
-        n_labels_total, n_proposals_total, n_correct_total = 0, 0, 0
-        preds = []
-        for idx, output in enumerate([xs, xm, xl]):
+        n_gt_total = [0 for _ in self.class_indices]
+        preds: List[Tensor] = []
+        outputs: List[Tensor] = []
+        for idx, output in enumerate([ys, ym, yl]):
             nb = output.size(0)
             na = len(self.anchor_masks[idx])
             ng = output.size(2)
-            nch = 5 + self.nc
 
             grid_x = self.grid_x[idx].expand(nb, -1, -1, -1)     # Tensor (nb, na, ng, ng)
             grid_y = self.grid_y[idx].expand(nb, -1, -1, -1)     # Tensor (nb, na, ng, ng)
@@ -219,11 +233,12 @@ class YOLOLoss(nn.Module):
             anchor_h = self.anchor_h[idx].expand(nb, -1, -1, -1) # Tensor (nb, na, ng, ng)
 
             # [nb, na * (5 + nc), ng, ng] -> [nb, na, ng, ng, (5 + nc)]
-            output = output.view(nb, na, nch, ng, ng)
+            output = output.view(nb, na, 5 + self.nc, ng, ng)
             output = output.permute(0, 1, 3, 4, 2).contiguous()
+            outputs.append(output)
 
             # logistic activation for xy, obj, cls
-            xy_obj_cls_mask = [0, 1] + [i for i in range(4, nch)]
+            xy_obj_cls_mask = [0, 1] + [i for i in range(4, 5 + self.nc)]
             output[..., xy_obj_cls_mask] = torch.sigmoid(output[..., xy_obj_cls_mask])
 
             pred = output.clone()
@@ -231,17 +246,24 @@ class YOLOLoss(nn.Module):
             pred[..., 1] += grid_y
             pred[..., 2] = torch.exp(pred[..., 2]) * anchor_w
             pred[..., 3] = torch.exp(pred[..., 3]) * anchor_h
+            preds.append(pred)
+        
+        if eval or labels is None:
+            nms(*preds, cfg.nms_iou_threshold)
 
+        preds_image_space = [None for _ in preds]
+        pred_results = [None for _ in preds]
+        for idx, (output, pred) in enumerate(zip(outputs, preds)):
             if labels is not None:
-                n_proposals = (pred[..., 4] > 0.5).sum().item()
-
-                obj_mask, noobj_mask, target, n_matched_objs, n_correct = self.build_target(
+                obj_mask, noobj_mask, target, n_gt, pred_results[idx] = self.build_target(
                     pred = torch.detach(pred),
                     labels = labels,
-                    nch = nch,
+                    nch = 5 + self.nc,
                     output_idx = idx,
                     visualize = visualize
                 )
+                for i in range(len(self.class_indices)):
+                    n_gt_total[i] += n_gt[i]
 
                 obj_mask = obj_mask.type(torch.ByteTensor).bool()
                 noobj_mask = noobj_mask.type(torch.ByteTensor).bool()
@@ -274,15 +296,10 @@ class YOLOLoss(nn.Module):
                     input = output[..., 5:][obj_mask],
                     target = target[..., 5:][obj_mask]
                 )
-
-                # add num_labels, num_proposals, and num_correct to their respective totals
-                n_labels_total += n_matched_objs
-                n_proposals_total += n_proposals
-                n_correct_total += n_correct
             else:
                 pred[..., :4] = pred[..., :4] * self.strides[idx]
-                preds.append(pred.view(nb, -1, nch))
-        
+                preds_image_space[idx] = pred.view(pred.size(0), -1, pred.size(-1))
+
         if labels is not None:
             loss = loss_xy.sum() + loss_wh.sum() + loss_conf.sum() + loss_cls.sum()
             return {
@@ -291,12 +308,11 @@ class YOLOLoss(nn.Module):
                 "wh": loss_wh.sum(),
                 "conf": loss_conf.sum(),
                 "cls": loss_cls.sum(),
-                "n_labels": n_labels_total,
-                "n_proposals": n_proposals_total,
-                "n_correct": n_correct_total
+                "n_gt": n_gt_total,                     # List: i-th element is number of gts in the i-th class
+                "pred_results": torch.cat(pred_results) # Tensor (n, 3): [[class, score, tp/fp], ...]
             }
         else:
-            return torch.cat(preds, dim=1)
+            return torch.cat(preds_image_space, dim=1)
 
 class MultitaskYOLOLoss(nn.Module):
     """
@@ -337,9 +353,14 @@ class MultitaskYOLOLoss(nn.Module):
         self,
         mt_output: Dict[str, List[Tensor]],
         labels: Optional[List[List[ObjectLabel]]] = None,
+        eval = False,
     ) -> Dict[str, Tuple]:
         return {
-            group_name: self.loss_layers[group_name](*mt_output[group_name], labels)
+            group_name: self.loss_layers[group_name](
+                *mt_output[group_name],
+                labels=labels,
+                eval=eval
+            )
             for group_name
             in self.class_grouping.groups.keys()
         }

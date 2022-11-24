@@ -5,8 +5,9 @@ from data.dataloader import DataLoader
 from util.device import device
 import torchvision.transforms as transforms
 from PIL import Image
+from util.types import Resolution
 
-from visualization.visualization import get_labeled_img
+from visualization.visualization import get_labeled_img, unpad_labels
 
 
 if __name__ == "__main__":
@@ -29,9 +30,9 @@ if __name__ == "__main__":
             print(f"\t{k} {v}")
 
     # Prediction and visualization
-    detections = get_detections(y, 0.8, dataset.classes, dataset.class_grouping, dataset.anchors)
-    for id, image, boxes in zip(ids, x, detections):
-        original_image = Image.open(f"{dataset.root_path}/{id}.jpg")
-        image = transforms.ToPILImage()(image)
-        labeled_image = get_labeled_img(image, boxes, dataset.classes, scale=1.5)
-        labeled_image.save(f"./out/{id}_loss_test_model_space.jpg")
+    # detections = get_detections(y, 0.9, dataset.classes, dataset.class_grouping, dataset.anchors)
+    # for id, image, image_detections in zip(ids, x, detections):
+    #     original_image = Image.open(f"{dataset.root_path}/{id}.jpg")
+    #     image_detections = unpad_labels(Resolution.from_image(original_image), image_detections)
+    #     labeled_image = get_labeled_img(original_image, image_detections, dataset.classes, scale=1.5)
+    #     labeled_image.save(f"./out/{id}_loss_test.jpg")

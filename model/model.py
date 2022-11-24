@@ -130,7 +130,7 @@ class MultitaskYOLO(nn.Module):
 
 def get_detections(
     mt_output: Dict[str, List[Tensor]],
-    conf_thres: float,
+    score_thres: float,
     all_classes: List[str],
     class_grouping: ClassGrouping,
     anchors: Dict[str, List[List[int]]],
@@ -141,7 +141,7 @@ def get_detections(
     Args:
         mt_output (Dict[str, List[Tensor]]): {"gp_1": [ys, ym, yl]_1, ..., "gp_n": [ys, ym, yl]_n}.
             This is the output produced by the MultitaskYOLO module.
-        conf_thres (float): Confidence threshold below which predictions are left out of the result
+        score_thres (float): Confidence threshold below which predictions are left out of the result
         all_classes (List[str]): all classes
         class_grouping (ClassGrouping): call grouping
         anchors (Dict[str, List[List[int]]]): anchors per class group
@@ -180,7 +180,7 @@ def get_detections(
                 w=det[2].item() / cfg.model_input_resolution.w,
                 h=det[3].item() / cfg.model_input_resolution.w,
             )
-            for det in detections[b][detections[b][:, 4] >= conf_thres]
+            for det in detections[b][detections[b][:, 4] >= score_thres]
         ]
         for b in range(nb)
     ]
