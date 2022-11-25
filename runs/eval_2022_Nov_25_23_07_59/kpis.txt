@@ -1,1 +1,0 @@
-aeroplane AP: 0.0bicycle AP: nanboat AP: 0.0bus AP: 0.0car AP: 0.0motorbike AP: nantrain AP: 0.0bird AP: 0.0cat AP: nancow AP: 0.0dog AP: 0.0horse AP: nanperson AP: 0.0sheep AP: nanbottle AP: 0.0chair AP: 0.0diningtable AP: 0.0pottedplant AP: 0.0sofa AP: nantvmonitor AP: 0.0mAP: 0.0
