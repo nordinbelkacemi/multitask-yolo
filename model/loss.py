@@ -194,12 +194,12 @@ class YOLOLoss(nn.Module):
                     pred_class = torch.argmax(pred[b, a, j, i, 5:])
                     target_class = self.class_indices.index(obj_labels[obj_i].cls)
 
-                    # if iou > cfg.eval_iou_match_threshold and pred_score > cfg.detection_score_threshold and pred_class == target_class:
-                    #     pred_results[b, a, j, i, 2] = 1
-                    # pred_results[b, a, j, i, 0] = target_class
-                    if pred_class == target_class:
-                        pred_results[b, a, j, i, 1] = (1 - cfg.detection_score_threshold) * torch.rand(1)[0] + cfg.detection_score_threshold
+                    if iou > cfg.eval_iou_match_threshold and pred_score > cfg.detection_score_threshold and pred_class == target_class:
                         pred_results[b, a, j, i, 2] = 1
+                    # pred_results[b, a, j, i, 0] = target_class
+                    # if pred_class == target_class:
+                    #     pred_results[b, a, j, i, 1] = (1 - cfg.detection_score_threshold) * torch.rand(1)[0] + cfg.detection_score_threshold
+                    #     pred_results[b, a, j, i, 2] = 1
 
         pred_results = pred_results.view(-1, 3)
         pred_results = pred_results[pred_results[:, 1] > cfg.detection_score_threshold]

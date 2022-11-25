@@ -22,10 +22,10 @@ def eval(model: MultitaskYOLO, epoch: int, dataset=eval_dataset):
         for group_name in class_groups.keys()
     }
 
-    for i in tqdm(range(16)):
+    for i in tqdm(range(len(dataloader))):
         yolo_input = dataloader[i]
         _, x, labels = yolo_input.id_batch, yolo_input.image_batch.to(device), yolo_input.label_batch
-        y = model.to(device)(x)                            # {"gp_1": [ys, ym, yl]_1, ..., "gp_n": [ys, ym, yl]_n}
+        y = model.to(device)(x)                 # {"gp_1": [ys, ym, yl]_1, ..., "gp_n": [ys, ym, yl]_n}
         loss = loss_fn(y, labels, eval=True)    # {"gp_1": loss_data_1, ..., "gp_n": loss_data_n} loss_data_i
                                                 # is the i-th group's loss data over all three pred scales
         for group_name in class_groups.keys():
@@ -51,22 +51,27 @@ def eval(model: MultitaskYOLO, epoch: int, dataset=eval_dataset):
 
 def average_precision(pred_results: Tensor, n_gt: int, class_name: str, epoch: int) -> float:
     sorted_pred_results = pred_results[pred_results[:, 0].sort(descending=True)[1]]
-    precision_values = sorted_pred_results[:, 1].cumsum(0) / (torch.arange(len(pred_results)).to(device) + 1)
     recall_values = sorted_pred_results[:, 1].cumsum(0) / n_gt
+    precision_values = sorted_pred_results[:, 1].cumsum(0) / (torch.arange(len(pred_results)).to(device) + 1)
+
+    recall_values = torch.cat([torch.zeros(1).to(device), recall_values])
+    precision_values = torch.cat([torch.ones(1).to(device), precision_values])
+
+    corrected_precision_values = precision_values.clone()
+    for i in reversed(range(1, len(corrected_precision_values))):
+        if corrected_precision_values[i - 1] < corrected_precision_values[i]:
+            corrected_precision_values[i - 1] = corrected_precision_values[i]
+    
     np.savetxt(
         f"./out/ep_{epoch}_{class_name}_prcurves_data.txt",
         torch.cat([recall_values.view(-1, 1), precision_values.view(-1, 1)], dim=1).cpu().numpy(),
         "%1.9f",
     )
-
-    corrected_precision_values = precision_values.clone()
-    max_precision = corrected_precision_values[-1]
-    for i in reversed(range(len(corrected_precision_values))):
-        if i > 0:
-            if corrected_precision_values[i] < max_precision:
-                corrected_precision_values[i] = max_p
-            else:
-                max_p = corrected_precision_values[i]
+    np.savetxt(
+        f"./out/ep_{epoch}_{class_name}_prcurves_data_corrected.txt",
+        torch.cat([recall_values.view(-1, 1), corrected_precision_values.view(-1, 1)], dim=1).cpu().numpy(),
+        "%1.9f",
+    )
 
     fig, axs = plt.subplots(1, 2)
     fig.set_figheight(5)
