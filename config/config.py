@@ -6,4 +6,4 @@ mod_feat_0 = 64
 
 eval_iou_match_threshold = 0.5
 detection_score_threshold = 0.5
-nms_iou_threshold = 0.5
+nms_iou_threshold = 0.2

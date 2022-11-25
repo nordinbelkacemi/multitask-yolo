@@ -6,6 +6,7 @@ import torch
 from torch import Tensor
 from matplotlib import pyplot as plt
 from tqdm import tqdm
+import numpy as np
 
 
 def eval(model: MultitaskYOLO, epoch: int, dataset=eval_dataset):
@@ -38,7 +39,7 @@ def eval(model: MultitaskYOLO, epoch: int, dataset=eval_dataset):
     aps = {}
     for group_name, classes in class_groups.items():
         print(f"{group_name}...")
-        for i, class_name in tqdm(enumerate(classes)):
+        for i, class_name in enumerate(tqdm(classes)):
             aps[class_name] = average_precision(
                 torch.cat(pred_results[group_name][i]),
                 n_gt[group_name][i],
@@ -52,7 +53,11 @@ def average_precision(pred_results: Tensor, n_gt: int, class_name: str, epoch: i
     sorted_pred_results = pred_results[pred_results[:, 0].sort(descending=True)[1]]
     precision_values = sorted_pred_results[:, 1].cumsum(0) / (torch.arange(len(pred_results)).to(device) + 1)
     recall_values = sorted_pred_results[:, 1].cumsum(0) / n_gt
-    print(sorted_pred_results[:, 1].cumsum(0))
+    np.savetxt(
+        f"./out/ep_{epoch}_{class_name}_prcurves_data.txt",
+        torch.cat([recall_values.view(-1, 1), precision_values.view(-1, 1)], dim=1).cpu().numpy(),
+        "%1.9f",
+    )
 
     corrected_precision_values = precision_values.clone()
     max_precision = corrected_precision_values[-1]
@@ -69,10 +74,10 @@ def average_precision(pred_results: Tensor, n_gt: int, class_name: str, epoch: i
 
     axs[0].set_xlabel("recall")
     axs[0].set_ylabel("precision")
-    axs[0].plot(recall_values.tolist(), precision_values.tolist(), "-o")
+    axs[0].plot(recall_values.tolist(), precision_values.tolist())
     axs[1].set_xlabel("recall")
     axs[1].set_ylabel("precision")
-    axs[1].plot(recall_values.tolist(), corrected_precision_values.tolist(), "-o")
+    axs[1].plot(recall_values.tolist(), corrected_precision_values.tolist())
     fig.savefig(f"./out/ep_{epoch}_{class_name}_prcurves.png")
 
     return torch.trapezoid(y=corrected_precision_values, x=recall_values)
