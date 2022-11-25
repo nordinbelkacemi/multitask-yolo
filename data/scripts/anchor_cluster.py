@@ -6,7 +6,7 @@ from data.datasets.datasets import *
 from torchvision.ops.boxes import box_iou
 from torch import Tensor
 import torch
-import datetime
+from datetime import datetime
 from tqdm import tqdm
 
 
@@ -125,7 +125,7 @@ def group_cluster_and_save(
     if not os.path.isdir(f"./data/datasets/{dataset_name}/anchors/{grouping_name}"):
         os.makedirs(f"./data/datasets/{dataset_name}/anchors/{grouping_name}")
 
-    timestamp = int(datetime.datetime.now().timestamp())
+    timestamp = int(datetime.now().timestamp())
     with open(f"./data/datasets/{dataset_name}/anchors/{grouping_name}/{group_name}_clustering_{timestamp}.txt", "a") as f:
         for k in ks:
             print(f"k={k}")

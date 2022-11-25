@@ -1,3 +1,4 @@
+from typing import Dict, Optional
 from model.model import MultitaskYOLO, MultitaskYOLOLoss
 from data.dataloader import DataLoader
 from config.train_config import eval_dataset, batch_size
@@ -7,12 +8,35 @@ from torch import Tensor
 from matplotlib import pyplot as plt
 from tqdm import tqdm
 import numpy as np
+import os
+from datetime import datetime
 
 
-def eval(model: MultitaskYOLO, epoch: int, dataset=eval_dataset):
-    dataloader = DataLoader(dataset, batch_size)
-    loss_fn = MultitaskYOLOLoss(dataset.classes, dataset.class_grouping, dataset.anchors)
-    class_groups = dataset.class_grouping.groups
+def eval(model: MultitaskYOLO, epoch: Optional[int], run_id: Optional[str]) -> Dict[str, float]:
+    """_summary_
+
+    Args:
+        model (MultitaskYOLO): _description_
+        epoch (Optional[int]): _description_
+        run_id (Optional[str]): _description_
+
+    Returns:
+        Dict[str, float]:
+            {
+                "mAP": mAP as float,
+                "AP class_1": AP of class 1,
+                ...
+                "AP class_n": AP of class n,
+            }
+            The keys of each class AP is "{class_name} AP"
+    """
+    if run_id is None:
+        run_id = f"eval_{datetime.now().strftime('%Y_%h_%d_%H_%M_%S')}"
+        os.mkdir(f"./runs/{run_id}")
+
+    dataloader = DataLoader(eval_dataset, batch_size)
+    loss_fn = MultitaskYOLOLoss(eval_dataset.classes, eval_dataset.class_grouping, eval_dataset.anchors)
+    class_groups = eval_dataset.class_grouping.groups
 
     pred_results = {
         group_name: [[] for _ in class_groups[group_name]]
@@ -22,7 +46,7 @@ def eval(model: MultitaskYOLO, epoch: int, dataset=eval_dataset):
         for group_name in class_groups.keys()
     }
 
-    for i in tqdm(range(len(dataloader))):
+    for i in tqdm(range(4), colour="blue", desc="Eval"):
         yolo_input = dataloader[i]
         _, x, labels = yolo_input.id_batch, yolo_input.image_batch.to(device), yolo_input.label_batch
         y = model.to(device)(x)                 # {"gp_1": [ys, ym, yl]_1, ..., "gp_n": [ys, ym, yl]_n}
@@ -33,23 +57,65 @@ def eval(model: MultitaskYOLO, epoch: int, dataset=eval_dataset):
                 class_mask = loss[group_name]["pred_results"][:, 0] == i
                 pred_results[group_name][i].append(loss[group_name]["pred_results"][class_mask][:,1:])
                 n_gt[group_name][i] += loss[group_name]["n_gt"][i]
+    
+    # print(n_gt)
 
-    print(n_gt)
-
-    aps = {}
+    kpis = {}
     for group_name, classes in class_groups.items():
-        print(f"{group_name}...")
-        for i, class_name in enumerate(tqdm(classes)):
-            aps[class_name] = average_precision(
+        for i, class_name in enumerate(tqdm(classes, colour="blue", desc=group_name)):
+            class_ap_data = average_precision(
                 torch.cat(pred_results[group_name][i]),
                 n_gt[group_name][i],
+            )
+
+            kpis[f"{class_name} AP"] = class_ap_data["ap"]
+            log_precision_recall(
+                class_ap_data["recall_values"],
+                class_ap_data["precision_values"],
                 class_name,
                 epoch,
+                run_id,
             )
-    
-    return aps
 
-def average_precision(pred_results: Tensor, n_gt: int, class_name: str, epoch: int) -> float:
+    m_ap = torch.mean(torch.tensor([ap for ap in kpis.values() if ap is not torch.nan])).item()
+    kpis["mAP"] = m_ap
+
+    with open(f"./runs/{run_id}/kpis.txt", "w") as f:
+        for k, v in kpis.items():
+            f.write(f"{k}: {v}\n")
+
+    return kpis
+
+
+def average_precision(pred_results: Tensor, n_gt: int) -> Dict:
+    """calculates AP of one class based on ranked predictions (prediction results)
+
+    Args:
+        pred_results (Tensor): tensor of shape (n_pred, 2): [[score, tp/fp], ...]
+            (tp/fp is 1 if prediction is a TP 0 if it is a  FP).
+        n_gt (int): number of ground truth objects
+
+    Returns:
+        Dict: 
+            {
+                "ap": AP wrt. the given class (nan if there are no gt objects) as float
+                "recall_values": recall values in a Tensor of shape (n_pred + 1,) ([0] if there are
+                    no gt objects)
+                "precision_values": interpolated precision values in a Tensor of shape
+                    (n_pred + 1,) ([1] if there are no gt objects)
+            }
+
+    """
+    recall_values = torch.zeros(1).to(device)
+    precision_values = torch.ones(1).to(device)
+
+    if n_gt == 0:
+        return {
+            "ap": torch.nan,
+            "recall_values": recall_values,
+            "precision_values": precision_values,
+        }
+
     sorted_pred_results = pred_results[pred_results[:, 0].sort(descending=True)[1]]
     recall_values = sorted_pred_results[:, 1].cumsum(0) / n_gt
     precision_values = sorted_pred_results[:, 1].cumsum(0) / (torch.arange(len(pred_results)).to(device) + 1)
@@ -57,32 +123,36 @@ def average_precision(pred_results: Tensor, n_gt: int, class_name: str, epoch: i
     recall_values = torch.cat([torch.zeros(1).to(device), recall_values])
     precision_values = torch.cat([torch.ones(1).to(device), precision_values])
 
-    corrected_precision_values = precision_values.clone()
-    for i in reversed(range(1, len(corrected_precision_values))):
-        if corrected_precision_values[i - 1] < corrected_precision_values[i]:
-            corrected_precision_values[i - 1] = corrected_precision_values[i]
-    
+    for i in reversed(range(1, len(precision_values))):
+        if precision_values[i - 1] < precision_values[i]:
+            precision_values[i - 1] = precision_values[i]
+
+    ap = torch.trapezoid(y=precision_values, x=recall_values).item()
+
+    return {
+        "ap": ap,
+        "recall_values": recall_values,
+        "precision_values": precision_values,
+    }
+
+
+def log_precision_recall(recall_values: Tensor, precision_values: Tensor, class_name: str, epoch: Optional[int], run_id: str):
+    if epoch is not None:
+        epoch_prefix = f"ep_{epoch}_"
+    else:
+        epoch_prefix = ""
+
     np.savetxt(
-        f"./out/ep_{epoch}_{class_name}_prcurves_data.txt",
-        torch.cat([recall_values.view(-1, 1), precision_values.view(-1, 1)], dim=1).cpu().numpy(),
-        "%1.9f",
-    )
-    np.savetxt(
-        f"./out/ep_{epoch}_{class_name}_prcurves_data_corrected.txt",
-        torch.cat([recall_values.view(-1, 1), corrected_precision_values.view(-1, 1)], dim=1).cpu().numpy(),
+        f"./runs/{run_id}/{epoch_prefix}{class_name}_prcurves_data.txt",
+        torch.cat([recall_values.view(-1, 1),
+                  precision_values.view(-1, 1)], dim=1).cpu().numpy(),
         "%1.9f",
     )
 
-    fig, axs = plt.subplots(1, 2)
+    fig, ax = plt.subplots()
     fig.set_figheight(5)
-    fig.set_figwidth(15)
-
-    axs[0].set_xlabel("recall")
-    axs[0].set_ylabel("precision")
-    axs[0].plot(recall_values.tolist(), precision_values.tolist())
-    axs[1].set_xlabel("recall")
-    axs[1].set_ylabel("precision")
-    axs[1].plot(recall_values.tolist(), corrected_precision_values.tolist())
-    fig.savefig(f"./out/ep_{epoch}_{class_name}_prcurves.png")
-
-    return torch.trapezoid(y=corrected_precision_values, x=recall_values)
+    fig.set_figwidth(10)
+    ax.set_xlabel("recall")
+    ax.set_ylabel("precision")
+    ax.plot(recall_values.tolist(), precision_values.tolist())
+    fig.savefig(f"./runs/{run_id}/{epoch_prefix}{class_name}_prcurves.png")

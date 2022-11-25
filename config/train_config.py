@@ -1,6 +1,9 @@
 from data.datasets.datasets import *
 
-train_dataset = PascalVOCDataset(dataset_type="train", shuffle=False)
-eval_dataset = PascalVOCDataset("val", shuffle=False)
-
-batch_size = 1
+batch_size = 4
+train_dataset = PascalVOCDataset("train", shuffle=False)
+eval_dataset = train_dataset
+# eval_dataset = PascalVOCDataset("val", shuffle=False)
+num_epochs = 50
+lr = 0.001
+eval_interval = 1

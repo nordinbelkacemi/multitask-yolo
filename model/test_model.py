@@ -3,7 +3,6 @@ from model.model import MultitaskYOLO
 import torch
 from torch import Tensor
 from config.train_config import train_dataset
-import torchinfo
 from util.device import device
 
 if __name__ == "__main__":

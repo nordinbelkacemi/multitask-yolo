@@ -12,7 +12,7 @@ from data.transforms import get_padding
 
 from torch import Tensor
 from matplotlib import pyplot as plt
-import datetime
+from datetime import datetime
 
 
 def unpad_labels(unpadded_resolution: Resolution, padded_labels: List[ObjectLabel]) -> List[ObjectLabel]:
@@ -130,5 +130,5 @@ def visualize_heatmap(target: Tensor, pred: Tensor, output_idx: int) -> None:
             fig.add_subplot(h, w, w + i + 1)
             plt.imshow(img, vmin=0, vmax=1)
 
-        timestamp = int(datetime.datetime.now().timestamp())
+        timestamp = int(datetime.now().timestamp())
         plt.savefig(f"out/heatmap_visu_{timestamp}")
