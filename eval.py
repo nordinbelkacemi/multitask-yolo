@@ -1,4 +1,4 @@
-from typing import Dict, Optional
+from typing import Dict, Optional, Tuple
 from model.model import MultitaskYOLO, MultitaskYOLOLoss
 from data.dataloader import DataLoader
 from config.train_config import eval_dataset, batch_size
@@ -12,23 +12,34 @@ import os
 from datetime import datetime
 
 
-def eval(model: MultitaskYOLO, epoch: Optional[int], run_id: Optional[str]) -> Dict[str, float]:
-    """_summary_
-
+def eval(
+    model: MultitaskYOLO,
+    epoch: Optional[int],
+    run_id: Optional[str],
+) -> Tuple[Dict[str, float], Dict[str, float]]:
+    """
     Args:
-        model (MultitaskYOLO): _description_
-        epoch (Optional[int]): _description_
-        run_id (Optional[str]): _description_
+        model (MultitaskYOLO): -
+        epoch (Optional[int]): -
+        run_id (Optional[str]): -
 
     Returns:
-        Dict[str, float]:
-            {
+        Tuple[Dict[str, float], Dict[str, Tensor]]: (kpis, losses)
+            kpis: {
                 "mAP": mAP as float,
                 "AP class_1": AP of class 1,
                 ...
                 "AP class_n": AP of class n,
             }
-            The keys of each class AP is "{class_name} AP"
+            (The keys of each class AP is "{class_name} AP")
+
+            losses: {
+                "total": ...
+                "xy": ...
+                "wh": ...
+                "conf": ...
+                "cls": ...
+            }
     """
     if run_id is None:
         run_id = f"eval_{datetime.now().strftime('%Y_%h_%d_%H_%M_%S')}"
@@ -46,17 +57,35 @@ def eval(model: MultitaskYOLO, epoch: Optional[int], run_id: Optional[str]) -> D
         for group_name in class_groups.keys()
     }
 
-    for i in tqdm(range(4), colour="blue", desc="Eval"):
+    total_losses = {
+        "total": 0,
+        "xy": 0,
+        "wh": 0,
+        "conf": 0,
+        "cls": 0,
+    }
+
+    num_batches = 4
+
+    for i in tqdm(range(num_batches), colour="blue", desc="Eval"):
         yolo_input = dataloader[i]
         _, x, labels = yolo_input.id_batch, yolo_input.image_batch.to(device), yolo_input.label_batch
         y = model.to(device)(x)                 # {"gp_1": [ys, ym, yl]_1, ..., "gp_n": [ys, ym, yl]_n}
-        loss = loss_fn(y, labels, eval=True)    # {"gp_1": loss_data_1, ..., "gp_n": loss_data_n} loss_data_i
+        losses = loss_fn(y, labels, eval=True)    # {"gp_1": loss_data_1, ..., "gp_n": loss_data_n} loss_data_i
                                                 # is the i-th group's loss data over all three pred scales
         for group_name in class_groups.keys():
             for i in range(len(class_groups[group_name])):
-                class_mask = loss[group_name]["pred_results"][:, 0] == i
-                pred_results[group_name][i].append(loss[group_name]["pred_results"][class_mask][:,1:])
-                n_gt[group_name][i] += loss[group_name]["n_gt"][i]
+                class_mask = losses[group_name]["pred_results"][:, 0] == i
+                pred_results[group_name][i].append(losses[group_name]["pred_results"][class_mask][:,1:])
+                n_gt[group_name][i] += losses[group_name]["n_gt"][i]
+        
+        losses = {
+            key: sum([group_losses[key] for group_losses in losses.values()])
+            for key in total_losses.keys()
+        }
+
+        for key in total_losses.keys():
+            total_losses[key] += losses[key] / num_batches
     
     # print(n_gt)
 
@@ -84,7 +113,7 @@ def eval(model: MultitaskYOLO, epoch: Optional[int], run_id: Optional[str]) -> D
         for k, v in kpis.items():
             f.write(f"{k}: {v}\n")
 
-    return kpis
+    return kpis, total_losses
 
 
 def average_precision(pred_results: Tensor, n_gt: int) -> Dict:
@@ -156,3 +185,4 @@ def log_precision_recall(recall_values: Tensor, precision_values: Tensor, class_
     ax.set_ylabel("precision")
     ax.plot(recall_values.tolist(), precision_values.tolist())
     fig.savefig(f"./runs/{run_id}/{epoch_prefix}{class_name}_prcurves.png")
+    plt.close(fig)
