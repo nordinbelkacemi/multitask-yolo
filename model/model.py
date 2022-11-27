@@ -129,45 +129,40 @@ class MultitaskYOLO(nn.Module):
 
 
 def get_detections(
-    mt_output: Dict[str, List[Tensor]],
+    preds: Dict[str, Tensor],
     score_thres: float,
     all_classes: List[str],
     class_grouping: ClassGrouping,
-    anchors: Dict[str, List[List[int]]],
 ) -> List[List[ObjectLabel]]:
     """Merges predictions coming from several multitask heads into a single tensor that contains
     all predictions whose confidence score is above conf_thes
     
     Args:
-        mt_output (Dict[str, List[Tensor]]): {"gp_1": [ys, ym, yl]_1, ..., "gp_n": [ys, ym, yl]_n}.
-            This is the output produced by the MultitaskYOLO module.
-        score_thres (float): Confidence threshold below which predictions are left out of the result
+        preds (Dict[str, Tensor]): {"gp_1": preds_1, ..., "gp_n": preds_n} (all predictions for
+            each group)
+        score_thres (float): If a prediction's score is below the score threshol, it is omitted
         all_classes (List[str]): all classes
         class_grouping (ClassGrouping): call grouping
-        anchors (Dict[str, List[List[int]]]): anchors per class group
 
     Returns:
-        Tensor: Tensor of shape (nb, N, nch_all), where bn is the batch size, N is the number of
-        predictions above the confidence threshold and nch_all is 5 + nc_all (nc_all being the
-        number of all classes in the dataset)
+        List[List[ObjectLabel]]: nb lists of n ObjectLabels, where bn is the batch size, n is the
+        number of predictions above the confidence threshold. (ObjectLabels are in YOLO format).
     """
-    loss_fn = MultitaskYOLOLoss(all_classes, class_grouping, anchors)
-    detections: Dict[str, Tensor] = loss_fn(mt_output)
-    nb = list(detections.values())[0].size(0)
-    
-    for group_name, class_group in class_grouping.groups.items():
-        box_obj_output = detections[group_name][:, :, :5]
-        class_indices = [all_classes.index(class_name) for class_name in class_group]
-        n = detections[group_name].size(1)
-        cls_output = torch.zeros(nb, n, len(all_classes)).to(device)
-        cls_output[:, :, class_indices] = detections[group_name][:, :, 5:]
+    nb = list(preds.values())[0].size(0)
 
-        detections[group_name] = torch.cat([box_obj_output, cls_output], dim=-1)
+    for group_name, class_group in class_grouping.groups.items():
+        boxes_and_scores = preds[group_name][:, :, :5]
+        class_indices = [all_classes.index(class_name) for class_name in class_group]
+        n = preds[group_name].size(1)
+        class_vectors = torch.zeros(nb, n, len(all_classes)).to(device)
+        class_vectors[:, :, class_indices] = preds[group_name][:, :, 5:]
+
+        preds[group_name] = torch.cat([boxes_and_scores, class_vectors], dim=-1)
     
     detections: Tensor = torch.cat([
-        group_detections
-        for group_detections
-        in detections.values()
+        group_preds
+        for group_preds
+        in preds.values()
     ], dim=1)
 
     

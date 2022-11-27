@@ -13,6 +13,7 @@ from data.transforms import get_padding
 from torch import Tensor
 from matplotlib import pyplot as plt
 from datetime import datetime
+from config.train_config import batch_size
 
 
 def unpad_labels(unpadded_resolution: Resolution, padded_labels: List[ObjectLabel]) -> List[ObjectLabel]:
@@ -110,25 +111,30 @@ def get_labeled_img(image: PILImage, labels: List[ObjectLabel], classes: List[st
     return Image.fromarray(image_cv2.astype(np.uint8))
 
 
-def visualize_heatmap(target: Tensor, pred: Tensor, output_idx: int) -> None:
-    for img_idx in range(2):
-        fig = plt.figure(figsize=(6, 4))
-        w, h = 2, 2
+def visualize_heatmap(
+    target: Tensor,
+    pred: Tensor,
+    output_idx: int,
+    num_anchors: int
+) -> plt.Figure:
+    w, h = num_anchors, batch_size * 2  # for every batch, 2 rows of heatmaps (target and pred),
+                                        # one heatmap per anchor box
+    fig = plt.figure(figsize=(w * 2, h * 2)) # 2 inch square heatmaps
+    fig.suptitle(f"scale: {['small', 'medium', 'large'][output_idx]}")
 
+    for img_idx in range(batch_size):
         anchor_targets = target[img_idx]
-        fig.suptitle(f"output id: {output_idx}")
         for i, anchor_target in enumerate(anchor_targets):
             confs = anchor_target[..., 4]
             img = confs.cpu().detach().numpy()
-            fig.add_subplot(h, w, i + 1)
+            fig.add_subplot(h, w, img_idx * w * 2 + i + 1)
             plt.imshow(img, vmin=0, vmax=1)
 
         anchor_preds = pred[img_idx]
         for i, anchor_pred in enumerate(anchor_preds):
             confs = anchor_pred[..., 4]
             img = confs.cpu().detach().numpy()
-            fig.add_subplot(h, w, w + i + 1)
+            fig.add_subplot(h, w, img_idx * w * 2 + w + i + 1)
             plt.imshow(img, vmin=0, vmax=1)
-
-        timestamp = int(datetime.now().timestamp())
-        plt.savefig(f"out/heatmap_visu_{timestamp}")
+    
+    return fig

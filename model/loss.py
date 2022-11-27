@@ -1,3 +1,4 @@
+import os
 from typing import Dict, List, Union, Optional, Tuple
 
 import torch
@@ -5,6 +6,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch import Tensor
 from torchvision.ops import box_convert, box_iou
+from torch.utils.tensorboard import SummaryWriter
 from abc import ABC, abstractmethod
 
 from config.config import model_input_resolution as img_res
@@ -14,6 +16,8 @@ from visualization.visualization import visualize_heatmap
 from util.device import device
 from util.nms import nms
 import config.config as cfg
+from datetime import datetime
+from logger.logger import log_heatmap
 
 
 class MeanLossBase(ABC):
@@ -56,8 +60,10 @@ class YOLOLoss(nn.Module):
         visualize (bool): Whether confidence heatmaps are visualized
 
     Returns:
-        Union[Dict,Tensor]: There are 3 cases.
-            1. Training: Dict containing loss values (total, xy, wh, conf and cls)
+        Tuple[Optional[Dict[str, float]], Tensor]: There are 3 cases. In all of them, the second
+            element of the returned tuple is a Tensor of shape (nb, num_preds, nch), containing all
+            predictions made (in image space)
+            1. Training: Dict containing loss values (total, xy, wh, conf and cls) and prediction tensor
             2. Eval: Dict containing loss values (total, xy, wh, conf and cls) and ranked
                 predictions. The latter is in the form of a tensor of shape (num_pred, 2)
                 (confidence and correctness for each prediction).
@@ -117,8 +123,10 @@ class YOLOLoss(nn.Module):
         labels: List[List[ObjectLabel]],
         nch: int,
         output_idx: int,
-        visualize = False
-    ) -> Tuple:
+        eval=False,
+        writer: Optional[SummaryWriter]=None,
+        epoch: Optional[int]=None,
+    ) -> Tuple[Optional[Dict[str, float]], Tensor]:
         stride = self.strides[output_idx]
         anchor_mask = self.anchor_masks[output_idx]
         nb, na, ng, ng, nch = pred.size()
@@ -145,8 +153,8 @@ class YOLOLoss(nn.Module):
             gt = torch.tensor([
                 l.bbox
                 for l
-                in obj_labels]
-            ).to(self.device) * img_res.w / stride                          # (n, 4)
+                in obj_labels
+            ]).to(self.device) * img_res.w / stride                         # (n, 4)
             ref_gt = torch.cat([                                            # (n, 4)
                 torch.zeros(n, 2).to(self.device),
                 gt[:, 2:]
@@ -186,22 +194,31 @@ class YOLOLoss(nn.Module):
                     target[b, a, j, i, 5 + self.class_indices.index(obj_labels[obj_i].cls)] = 1
 
                     iou = box_iou(
-                        pred[b, a, j, i, :4].unsqueeze(0),
+                        box_convert(pred[b, a, j, i, :4].unsqueeze(0),  "cxcywh", "xyxy"),
                         box_convert(gt[obj_i].unsqueeze(0), "cxcywh", "xyxy"),
-                    )
-
+                    ).item()
                     pred_score = pred[b, a, j, i, 4]
                     pred_class = torch.argmax(pred[b, a, j, i, 5:])
                     target_class = self.class_indices.index(obj_labels[obj_i].cls)
 
+                    if eval:
+                        timestamp = datetime.now().strftime('%Y_%h_%d_%H_%M_%S')
+                        if not os.path.exists(f"./out/{timestamp}"):
+                            os.makedirs(f"./out/{timestamp}")
+                        with open(f"./out/{timestamp}/eval_gt_data.txt", "w") as f:
+                            f.write(f"pred score: {pred_score}\n")
+                            f.write(f"iou: {iou}\n")
+                            f.write(f"pred class: {pred_class} target class: {target_class}\n")
+
                     if iou > cfg.eval_iou_match_threshold and pred_score > cfg.detection_score_threshold and pred_class == target_class:
-                        pred_results[b, a, j, i, 2] = 1
+                        pred_results[b, a, j, i, 2] = 1     # mark as correct (true positive)
+
 
         pred_results = pred_results.view(-1, 3)
         pred_results = pred_results[pred_results[:, 1] > cfg.detection_score_threshold]
 
-        if visualize:
-            visualize_heatmap(target, pred, output_idx)
+        if writer is not None and epoch is not None:
+            log_heatmap(target, pred, output_idx, len(self.anchor_masks[output_idx]), eval, epoch, writer)
 
         return obj_mask, noobj_mask, target, n_gt, pred_results
 
@@ -212,15 +229,16 @@ class YOLOLoss(nn.Module):
         yl: Tensor,
         labels = None,
         eval = False,
-        visualize = False
-    ) -> Union[Dict,Tensor]:
+        writer: Optional[SummaryWriter]=None,
+        epoch: Optional[int]=None,
+    ) -> Union[Dict, Tensor]:
         loss_xy = torch.zeros(3)
         loss_wh = torch.zeros(3)
         loss_conf = torch.zeros(3)
         loss_cls = torch.zeros(3)
         n_gt_total = [0 for _ in self.class_indices]
-        preds: List[Tensor] = []
-        outputs: List[Tensor] = []
+        preds: List[Tensor] = []    # length = amount of scales (3)
+        outputs: List[Tensor] = []  # length = amount of scales (3)
         for idx, output in enumerate([ys, ym, yl]):
             nb = output.size(0)
             na = len(self.anchor_masks[idx])
@@ -248,25 +266,28 @@ class YOLOLoss(nn.Module):
             preds.append(pred)
         
         if eval or labels is None:
-            nms(*preds, cfg.nms_iou_threshold)
+            nms(*preds, self.strides)
 
         preds_image_space = [None for _ in preds]
-        pred_results = [None for _ in preds]
+        pred_results = [None for _ in preds]        
         for idx, (output, pred) in enumerate(zip(outputs, preds)):
+            # Loss
             if labels is not None:
                 obj_mask, noobj_mask, target, n_gt, pred_results[idx] = self.build_target(
                     pred = torch.detach(pred),
                     labels = labels,
                     nch = 5 + self.nc,
                     output_idx = idx,
-                    visualize = visualize
+                    eval=eval,
+                    writer=writer,
+                    epoch=epoch,
                 )
                 for i in range(len(self.class_indices)):
                     n_gt_total[i] += n_gt[i]
 
                 obj_mask = obj_mask.type(torch.ByteTensor).bool()
                 noobj_mask = noobj_mask.type(torch.ByteTensor).bool()
-                
+
                 # x and y loss
                 loss_xy[idx] = self.lambda_coord * self.mse_loss(
                     input = output[..., :2][obj_mask],
@@ -295,13 +316,16 @@ class YOLOLoss(nn.Module):
                     input = output[..., 5:][obj_mask],
                     target = target[..., 5:][obj_mask]
                 )
-            else:
-                pred[..., :4] = pred[..., :4] * self.strides[idx]
-                preds_image_space[idx] = pred.view(pred.size(0), -1, pred.size(-1))
+
+            # Prediction tensor
+            pred[..., :4] = pred[..., :4] * self.strides[idx]
+            preds_image_space[idx] = pred.view(pred.size(0), -1, pred.size(-1))
+
+        preds_image_space_merged = torch.cat(preds_image_space, dim=1)
 
         if labels is not None:
             loss = loss_xy.sum() + loss_wh.sum() + loss_conf.sum() + loss_cls.sum()
-            return {
+            losses = {
                 "total": loss,
                 "xy": loss_xy.sum(),
                 "wh": loss_wh.sum(),
@@ -310,8 +334,9 @@ class YOLOLoss(nn.Module):
                 "n_gt": n_gt_total,                     # List: i-th element is number of gts in the i-th class
                 "pred_results": torch.cat(pred_results) # Tensor (n, 3): [[class, score, tp/fp], ...]
             }
+            return (losses, preds_image_space_merged)
         else:
-            return torch.cat(preds_image_space, dim=1)
+            return (None, preds_image_space_merged)
 
 class MultitaskYOLOLoss(nn.Module):
     """
@@ -353,13 +378,24 @@ class MultitaskYOLOLoss(nn.Module):
         mt_output: Dict[str, List[Tensor]],
         labels: Optional[List[List[ObjectLabel]]] = None,
         eval = False,
+        writer: Optional[SummaryWriter]=None,
+        epoch: Optional[int]=None,
     ) -> Dict[str, Tuple]:
-        return {
+        data_per_group = {
             group_name: self.loss_layers[group_name](
                 *mt_output[group_name],
                 labels=labels,
-                eval=eval
+                eval=eval,
+                writer=writer,
+                epoch=epoch,
             )
             for group_name
             in self.class_grouping.groups.keys()
         }
+
+        return (
+            {k: v[0] for k, v in data_per_group.items()},   # losses per group
+            {k: v[1] for k, v in data_per_group.items()},    # predictions per group
+        )
+            
+

@@ -2,8 +2,9 @@ from typing import List
 import torch
 from torch import Tensor
 from torchvision.ops import batched_nms, box_convert
+from config.config import nms_iou_threshold
 
-def nms(ys: Tensor, ym: Tensor, yl: Tensor, iou_threshold: float) -> None:
+def nms(ys: Tensor, ym: Tensor, yl: Tensor, strides: List[float], iou_threshold=nms_iou_threshold) -> None:
     """
     Runs non maximum suppression on predictions at 3 scales: First, predictions from the 3
     different scales are merged, scores below 0.5 are filtered out and nms is run using
@@ -14,16 +15,13 @@ def nms(ys: Tensor, ym: Tensor, yl: Tensor, iou_threshold: float) -> None:
         ys (Tensor): Tensor of shape (nb, na_s, ng_s, ng_s, 5 + nc)
         ym (Tensor): Tensor of shape (nb, na_m, ng_m, ng_m, 5 + nc)
         yl (Tensor): Tensor of shape (nb, na_l, ng_l, ng_l, 5 + nc)
-    
-    Returns:
-        List[Tensor]: [ys, ym, yl] with 0 score at predictions that were not kept by nms
     """
     ns, nm, nl = (y.size(1) * y.size(2) * y.size(3) for y in [ys, ym, yl])
 
     boxes_batch = torch.cat([
-        y.view(y.size(0), -1, y.size(-1))[:, :, :4]
-        for y
-        in [ys, ym, yl]
+        y.view(y.size(0), -1, y.size(-1))[:, :, :4] * stride
+        for y, stride
+        in zip([ys, ym, yl], strides)
     ], dim=1)
     scores_batch = torch.cat([
         y.view(y.size(0), -1, y.size(-1))[:, :, 4]
@@ -57,3 +55,4 @@ def nms(ys: Tensor, ym: Tensor, yl: Tensor, iou_threshold: float) -> None:
             rem_confs = y.view(y.size(0), -1, y.size(-1))[i, :, 4][mask]
             y.view(y.size(0), -1, y.size(-1))[i, :, 4] = 0            
             y.view(y.size(0), -1, y.size(-1))[i, :, 4][mask] = rem_confs
+
