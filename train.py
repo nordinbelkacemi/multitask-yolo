@@ -29,7 +29,7 @@ def train_one_epoch(model: MultitaskYOLO, epoch: int, writer: SummaryWriter) -> 
     """
     model.train()
 
-    dataloader = DataLoader(train_dataset, batch_size)
+    dataloader = DataLoader(train_dataset, train_batch_size)
     loss_fn: MultitaskYOLOLoss = MultitaskYOLOLoss(
         train_dataset.classes,
         train_dataset.class_grouping,
@@ -45,9 +45,7 @@ def train_one_epoch(model: MultitaskYOLO, epoch: int, writer: SummaryWriter) -> 
         "cls": 0,
     }
 
-    num_batches = 4
-
-    for i in tqdm(range(num_batches), colour="green", desc=f"Train epoch {epoch}"):
+    for i in tqdm(range(len(dataloader)), colour="green", desc=f"Train epoch {epoch}"):
         yolo_input = dataloader[i]
         x, labels = yolo_input.image_batch.to(device), yolo_input.label_batch
 
@@ -74,7 +72,7 @@ def train_one_epoch(model: MultitaskYOLO, epoch: int, writer: SummaryWriter) -> 
 
         # Gather data and log
         for key in total_losses.keys():
-            total_losses[key] += losses[key] / num_batches
+            total_losses[key] += losses[key] / len(dataloader)
 
     return total_losses
 
@@ -105,7 +103,8 @@ def eval_one_epoch(model: MultitaskYOLO, epoch: int, writer: SummaryWriter) -> T
             }
     """
     model.eval()
-    kpis, losses = eval(model, epoch, writer)
+    with torch.no_grad():
+        kpis, losses = eval(model, epoch, writer)
     
     # text_string = ""
     # for k, v in kpis.items():
@@ -121,7 +120,7 @@ def train(model: MultitaskYOLO, num_epochs: int, writer: SummaryWriter) -> None:
         # train one epoch
         train_losses = train_one_epoch(model, epoch, writer)
         log_losses(train_losses, "train", epoch, writer)
-
+        
         # evaluate one epoch if at the end of interval
         if epoch % eval_interval == 0:
             kpis, val_losses = eval_one_epoch(model, epoch, writer)
@@ -132,6 +131,7 @@ def train(model: MultitaskYOLO, num_epochs: int, writer: SummaryWriter) -> None:
             if kpis["mAP"] > best_mAP:
                 best_mAP = kpis["mAP"]
                 torch.save(model.state_dict(), f"{writer.log_dir}/saved_models/ep_{epoch}.pt")
+
 
 
 if __name__ == "__main__":

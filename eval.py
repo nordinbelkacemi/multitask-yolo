@@ -7,6 +7,7 @@ import torch
 from config.train_config import *
 from data.dataloader import DataLoader
 from matplotlib import pyplot as plt
+from logger.logger import log_precision_recall
 from model.model import MultitaskYOLO, MultitaskYOLOLoss, get_detections
 from PIL import Image
 from torch import Tensor
@@ -52,16 +53,16 @@ def eval(
         os.makedirs(f"./runs/{run_id}")
         writer = SummaryWriter(f"./runs/{run_id}")
 
-    dataloader = DataLoader(eval_dataset, batch_size)
+    dataloader = DataLoader(eval_dataset, eval_batch_size)
     loss_fn = MultitaskYOLOLoss(eval_dataset.classes, eval_dataset.class_grouping, eval_dataset.anchors)
     class_groups = eval_dataset.class_grouping.groups
 
     pred_results = {
-        group_name: [[] for _ in class_groups[group_name]]
-        for group_name in class_groups.keys()}
+        group_name: [[] for _ in group_classes]
+        for group_name, group_classes in class_groups.items()}
     n_gt = {
-        group_name: [0 for _ in class_groups[group_name]]
-        for group_name in class_groups.keys()
+        group_name: [0 for _ in group_classes]
+        for group_name, group_classes in class_groups.items()
     }
 
     total_losses = {
@@ -71,10 +72,8 @@ def eval(
         "conf": 0,
         "cls": 0,
     }
-
-    num_batches = 4
-
-    for i in tqdm(range(num_batches), colour="blue", desc="Eval"):
+    
+    for i in tqdm(range(len(dataloader)), colour="blue", desc="Eval"):
         yolo_input = dataloader[i]
         ids, x, labels = yolo_input.id_batch, yolo_input.image_batch.to(device), yolo_input.label_batch        
         y = model.to(device)(x)                         # {"gp_1": [ys, ym, yl]_1, ..., "gp_n": [ys, ym, yl]_n}
@@ -92,7 +91,7 @@ def eval(
         }
 
         for key in total_losses.keys():
-            total_losses[key] += losses[key] / num_batches
+            total_losses[key] += losses[key] / len(dataloader)
 
         if i == 0 and epoch % visualization_interval == 0:
             detections = get_detections(preds, 0.5, eval_dataset.classes, eval_dataset.class_grouping)
@@ -106,7 +105,7 @@ def eval(
 
     kpis = {}
     for group_name, classes in class_groups.items():
-        for i, class_name in enumerate(classes):
+        for i, class_name in enumerate(tqdm(classes, colour="blue", desc=f"{group_name} APs")):
             class_ap_data = average_precision(
                 torch.cat(pred_results[group_name][i]),
                 n_gt[group_name][i],
@@ -116,6 +115,7 @@ def eval(
             log_precision_recall(
                 class_ap_data["recall_values"],
                 class_ap_data["precision_values"],
+                group_name,
                 class_name,
                 epoch,
                 writer,
@@ -175,35 +175,3 @@ def average_precision(pred_results: Tensor, n_gt: int) -> Dict:
         "recall_values": recall_values,
         "precision_values": precision_values,
     }
-
-
-def log_precision_recall(
-    recall_values: Tensor,
-    precision_values: Tensor,
-    class_name: str,
-    epoch: Optional[int]=None,
-    writer: Optional[SummaryWriter]=None,
-    step: Optional[int]=None
-) -> None:
-    
-    data = torch.cat([recall_values.view(-1, 1), precision_values.view(-1, 1)], dim=1).cpu().tolist()
-
-    text_string = ""
-    for pair in data:
-        text_string += f"{pair[0]} {pair[1]}"
-    writer.add_text(f"ep_{epoch}_{class_name}_pr_data", text_string)
-    # np.savetxt(
-    #     f"{log_dir}/{class_name}_prcurves_data.txt",
-    #     torch.cat([recall_values.view(-1, 1), precision_values.view(-1, 1)], dim=1).cpu().numpy(),
-    #     "%1.9f",
-    # )
-
-    fig, ax = plt.subplots()
-    fig.set_figheight(5)
-    fig.set_figwidth(10)
-    ax.set_xlabel("recall")
-    ax.set_ylabel("precision")
-    ax.plot(recall_values.tolist(), precision_values.tolist())
-    # fig.savefig(f"{log_dir}/{class_name}_prcurves.png")
-    writer.add_figure(f"ep_{epoch}_pr_curves", fig, step, close=True)
-    plt.close(fig)

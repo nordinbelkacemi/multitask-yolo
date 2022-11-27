@@ -1,4 +1,4 @@
-from typing import Dict
+from typing import Dict, Optional
 from torch.utils.tensorboard import SummaryWriter
 import torch
 from visualization.visualization import visualize_heatmap
@@ -68,3 +68,37 @@ def log_heatmap(
     fig = visualize_heatmap(target, pred, output_idx, num_anchors)
     tag = f"ep_{epoch}_heatmap" if not eval else f"ep_{epoch}_eval_heatmap"
     writer.add_figure(tag, fig, output_idx, close=True)
+
+
+def log_precision_recall(
+    recall_values: Tensor,
+    precision_values: Tensor,
+    group_name: str,
+    class_name: str,
+    epoch: Optional[int]=None,
+    writer: Optional[SummaryWriter]=None,
+    step: Optional[int]=None
+) -> None:
+    
+    data = torch.cat([recall_values.view(-1, 1), precision_values.view(-1, 1)], dim=1).cpu().tolist()
+
+    text_string = ""
+    for pair in data:
+        text_string += f"{pair[0]} {pair[1]}"
+    writer.add_text(f"ep_{epoch}_{class_name}_pr_data", text_string)
+    # np.savetxt(
+    #     f"{log_dir}/{class_name}_prcurves_data.txt",
+    #     torch.cat([recall_values.view(-1, 1), precision_values.view(-1, 1)], dim=1).cpu().numpy(),
+    #     "%1.9f",
+    # )
+
+    fig, ax = plt.subplots()
+    fig.suptitle(class_name)
+    fig.set_figheight(5)
+    fig.set_figwidth(10)
+    ax.set_xlabel("recall")
+    ax.set_ylabel("precision")
+    ax.plot(recall_values.tolist(), precision_values.tolist())
+    # fig.savefig(f"{log_dir}/{class_name}_prcurves.png")
+    writer.add_figure(f"ep_{epoch}_{group_name}_pr_curves", fig, step, close=True)
+    plt.close(fig)

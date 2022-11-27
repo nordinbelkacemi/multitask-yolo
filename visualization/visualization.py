@@ -13,7 +13,7 @@ from data.transforms import get_padding
 from torch import Tensor
 from matplotlib import pyplot as plt
 from datetime import datetime
-from config.train_config import batch_size
+from config.train_config import eval_batch_size
 
 
 def unpad_labels(unpadded_resolution: Resolution, padded_labels: List[ObjectLabel]) -> List[ObjectLabel]:
@@ -65,8 +65,12 @@ def get_labeled_img(image: PILImage, labels: List[ObjectLabel], classes: List[st
             label.bbox,
             Resolution(w, h)
         )
-        x1, y1 = max(0, int(x1)), max(0, int(y1))
-        x2, y2 = min(w, int(x2)), min(h, int(y2))
+
+        try:
+            x1, y1 = max(0, int(x1)), max(0, int(y1))
+            x2, y2 = min(w, int(x2)), min(h, int(y2))
+        except(OverflowError):
+            x1, y1, x2, y2 = 0, 0, 0, 0
 
         # draw bounding box
         cv2.rectangle(
@@ -117,12 +121,12 @@ def visualize_heatmap(
     output_idx: int,
     num_anchors: int
 ) -> plt.Figure:
-    w, h = num_anchors, batch_size * 2  # for every batch, 2 rows of heatmaps (target and pred),
+    w, h = num_anchors, eval_batch_size * 2  # for every batch, 2 rows of heatmaps (target and pred),
                                         # one heatmap per anchor box
     fig = plt.figure(figsize=(w * 2, h * 2)) # 2 inch square heatmaps
     fig.suptitle(f"scale: {['small', 'medium', 'large'][output_idx]}")
 
-    for img_idx in range(batch_size):
+    for img_idx in range(eval_batch_size):
         anchor_targets = target[img_idx]
         for i, anchor_target in enumerate(anchor_targets):
             confs = anchor_target[..., 4]
