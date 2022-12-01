@@ -78,7 +78,6 @@ class YOLOLoss(nn.Module):
     ) -> None:
         super().__init__()
         self.device = device
-
         self.strides = [8, 16, 32]
 
         self.class_indices = [all_classes.index(class_name) for class_name in class_group]
@@ -87,12 +86,9 @@ class YOLOLoss(nn.Module):
         self.anchor_masks = anchor_masks
 
         self.ignore_thres = 0.5
-        self.lambda_noobj = 1
-        self.lambda_obj = 10
-        self.lambda_coord = 1
 
-        self.bce_loss = MeanBCELoss()
         self.mse_loss = MeanMSELoss()
+        self.bce_loss = MeanBCELoss()
         self.masked_anchors, self.ref_anchors, self.grid_x, self.grid_y, self.anchor_w, self.anchor_h = [], [], [], [], [], []
 
         for stride, mask in zip(self.strides, self.anchor_masks):
@@ -150,6 +146,7 @@ class YOLOLoss(nn.Module):
             if n == 0:
                 continue
 
+
             gt = torch.tensor([
                 l.bbox
                 for l
@@ -159,8 +156,8 @@ class YOLOLoss(nn.Module):
                 torch.zeros(n, 2).to(self.device),
                 gt[:, 2:]
             ], dim=1)
-            gt_i = gt[:, 0].type(torch.int)                                 # (n)
-            gt_j = gt[:, 1].type(torch.int)                                 # (n)
+            gt_i = torch.clamp(gt[:, 0].type(torch.int), min=0, max=ng - 1) # (n)
+            gt_j = torch.clamp(gt[:, 1].type(torch.int), min=0, max=ng - 1) # (n)
 
             anchor_ious_all = box_iou(ref_gt, ref_anchors)                  # (n, na_all)
             anchor_ious_masked = anchor_ious_all[:, anchor_mask]            # (n, na)
@@ -170,14 +167,14 @@ class YOLOLoss(nn.Module):
                 best_n_all,
                 torch.tensor(anchor_mask).to(self.device)
             )
-
-            for i, l in enumerate(obj_labels):
-                if best_n_mask[i]:
-                    n_gt[self.class_indices.index(l.cls)] += 1
-            
+                    
             n = best_n_mask.sum().item()
             if n == 0:
                 continue
+            
+            for i, l in enumerate(obj_labels):
+                if best_n_mask[i]:
+                    n_gt[self.class_indices.index(l.cls)] += 1
 
             for obj_i, gt_box in enumerate(gt):
                 if best_n_mask[obj_i]:
@@ -186,10 +183,12 @@ class YOLOLoss(nn.Module):
 
                     obj_mask[b, a, j, i] = 1
                     noobj_mask[b, a, j, i] = 0
-                    noobj_mask[b, anchor_ious_masked[obj_i] > self.ignore_thres, i, j] = 0
+                    noobj_mask[b, anchor_ious_masked[obj_i] > self.ignore_thres, j, i] = 0
 
                     target[b, a, j, i, 0:2] = gt_box[0:2] - torch.floor(gt_box[0:2])
                     target[b, a, j, i, 2:4] = torch.log(gt_box[2:4] / masked_anchors[a] + 1e-16)
+                    # print(gt_box[2:4] / masked_anchors[a])
+                    # target[b, a, j, i, 2:4] = 0.5 * torch.sqrt(gt_box[2:4] / masked_anchors[a])
                     target[b, a, j, i, 4] = 1
                     target[b, a, j, i, 5 + self.class_indices.index(obj_labels[obj_i].cls)] = 1
 
@@ -201,24 +200,17 @@ class YOLOLoss(nn.Module):
                     pred_class = torch.argmax(pred[b, a, j, i, 5:])
                     target_class = self.class_indices.index(obj_labels[obj_i].cls)
 
-                    if eval:
-                        timestamp = datetime.now().strftime('%Y_%h_%d_%H_%M_%S')
-                        if not os.path.exists(f"./out/{timestamp}"):
-                            os.makedirs(f"./out/{timestamp}")
-                        with open(f"./out/{timestamp}/eval_gt_data.txt", "w") as f:
-                            f.write(f"pred score: {pred_score}\n")
-                            f.write(f"iou: {iou}\n")
-                            f.write(f"pred class: {pred_class} target class: {target_class}\n")
-
                     if iou > cfg.eval_iou_match_threshold and pred_score > cfg.detection_score_threshold and pred_class == target_class:
-                        pred_results[b, a, j, i, 2] = 1     # mark as correct (true positive)
+                        pred_results[b, a, j, i, 2] = 1
 
 
         pred_results = pred_results.view(-1, 3)
         pred_results = pred_results[pred_results[:, 1] > cfg.detection_score_threshold]
 
+        # print(obj_mask, noobj_mask)
+
         if writer is not None and epoch is not None:
-            log_heatmap(target, pred, output_idx, len(self.anchor_masks[output_idx]), eval, epoch, writer)
+            log_heatmap(target, pred.detach(), obj_mask, noobj_mask, output_idx, self.class_indices, len(self.anchor_masks[output_idx]), eval, epoch, writer)
 
         return obj_mask, noobj_mask, target, n_gt, pred_results
 
@@ -252,17 +244,20 @@ class YOLOLoss(nn.Module):
             # [nb, na * (5 + nc), ng, ng] -> [nb, na, ng, ng, (5 + nc)]
             output = output.view(nb, na, 5 + self.nc, ng, ng)
             output = output.permute(0, 1, 3, 4, 2).contiguous()
-            outputs.append(output)
 
-            # logistic activation for xy, obj, cls
+            # # logistic activation for xy, obj, cls
             xy_obj_cls_mask = [0, 1] + [i for i in range(4, 5 + self.nc)]
             output[..., xy_obj_cls_mask] = torch.sigmoid(output[..., xy_obj_cls_mask])
+            # output = torch.sigmoid(output)
+            outputs.append(output)
 
             pred = output.clone()
             pred[..., 0] += grid_x
             pred[..., 1] += grid_y
             pred[..., 2] = torch.exp(pred[..., 2]) * anchor_w
             pred[..., 3] = torch.exp(pred[..., 3]) * anchor_h
+            # pred[..., 2] = (2 * pred[..., 2]) ** 2 * anchor_w
+            # pred[..., 3] = (2 * pred[..., 3]) ** 2 * anchor_h
             preds.append(pred)
         
         if eval or labels is None:
@@ -285,43 +280,34 @@ class YOLOLoss(nn.Module):
                 for i in range(len(self.class_indices)):
                     n_gt_total[i] += n_gt[i]
 
-                obj_mask = obj_mask.type(torch.ByteTensor).bool()
-                noobj_mask = noobj_mask.type(torch.ByteTensor).bool()
+                obj_mask = obj_mask.type(torch.bool)
+                noobj_mask = noobj_mask.type(torch.bool)
 
-                # x and y loss
-                loss_xy[idx] = self.lambda_coord * self.mse_loss(
-                    input = output[..., :2][obj_mask],
-                    target = target[..., :2][obj_mask]
-                )
+                n_obj = sum([n for n in n_gt]) # number of objects matched with anchor boxes at scale
+                k = (n_obj + 1) / nb
 
-                # width and height loss
-                loss_wh[idx] = self.lambda_coord * self.mse_loss(
-                    input = output[..., 2:4][obj_mask],
-                    target = target[..., 2:4][obj_mask]
-                )
-                
-                # confidence loss
-                loss_obj = self.bce_loss(
-                    input = output[..., 4][obj_mask],
-                    target = target[..., 4][obj_mask]
-                )
-                loss_noobj = self.bce_loss(
-                    input = output[..., 4][noobj_mask],
-                    target = target[..., 4][noobj_mask]
-                )
-                loss_conf[idx] = self.lambda_obj * loss_obj + self.lambda_noobj * loss_noobj
-                
-                # classification loss
-                loss_cls[idx] = self.bce_loss(
-                    input = output[..., 5:][obj_mask],
-                    target = target[..., 5:][obj_mask]
-                )
+                loss_xy[idx] = k * self.mse_loss(output[..., :2][obj_mask], target[..., :2][obj_mask])
+                loss_wh[idx] = k * self.mse_loss(output[..., 2:4][obj_mask], target[..., 2:4][obj_mask])
+                loss_obj = k * self.bce_loss(output[..., 4][obj_mask], target[..., 4][obj_mask])
+                loss_noobj = k * self.bce_loss(output[..., 4][noobj_mask], target[..., 4][noobj_mask])
+                loss_conf[idx] = loss_obj + loss_noobj
+                loss_cls[idx] = k * self.bce_loss(output[..., 5:][obj_mask], target[..., 5:][obj_mask])
+                # loss_xy[idx] = F.mse_loss(output[..., :2][obj_mask], target[..., :2][obj_mask], reduction="sum")
+                # loss_wh[idx] = F.mse_loss(output[..., 2:4][obj_mask], target[..., 2:4][obj_mask], reduction="sum")
+                # loss_obj = F.binary_cross_entropy(output[..., 4][obj_mask], target[..., 4][obj_mask], reduction="sum")
+                # loss_noobj = F.binary_cross_entropy(output[..., 4][noobj_mask], target[..., 4][noobj_mask], reduction="sum")
+                # loss_conf[idx] = loss_obj + loss_noobj
+                # loss_cls[idx] = F.binary_cross_entropy(output[..., 5:][obj_mask], target[..., 5:][obj_mask], reduction="sum")
 
             # Prediction tensor
             pred[..., :4] = pred[..., :4] * self.strides[idx]
             preds_image_space[idx] = pred.view(pred.size(0), -1, pred.size(-1))
 
         preds_image_space_merged = torch.cat(preds_image_space, dim=1)
+
+        # # https://github.com/ultralytics/yolov5/blob/c09fb2aa95b6ca86c460aa106e2308805649feb9/utils/loss.py#L111
+        # for i, f in enumerate([4.0, 1.0, 0.4]):
+        #     loss_conf[i] *= f
 
         if labels is not None:
             loss = loss_xy.sum() + loss_wh.sum() + loss_conf.sum() + loss_cls.sum()
@@ -364,7 +350,7 @@ class MultitaskYOLOLoss(nn.Module):
                 all_classes,
                 class_group,
                 group_anchors,
-                get_anchor_masks(group_anchors)
+                get_anchor_masks(group_anchors),
             )
             for (group_name, class_group), group_anchors
             in zip(

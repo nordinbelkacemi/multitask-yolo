@@ -7,6 +7,7 @@ from torch import Tensor
 from model.loss import MultitaskYOLOLoss
 from util.device import device
 import config.config as cfg
+import math
 
 
 class BackBone(nn.Module):
@@ -114,6 +115,16 @@ class MultitaskYOLO(nn.Module):
             for (group_name, classes), group_anchors
             in zip(class_grouping.groups.items(), anchors.values())
         })
+
+        # initialize biases to output 0.01 score after sigmoid
+        p = 0.01
+        for conv_ms, group_anchors in zip(self.mt_heads.values(), anchors.values()):
+            for conv_m, a_mask in zip(conv_ms, get_anchor_masks(group_anchors)):
+                na = len(a_mask)
+                b = conv_m.bias.view(na, -1)
+                b.data[:, 4] = -math.log((1 - p) / p)
+                conv_m.bias = torch.nn.Parameter(b.view(-1), requires_grad=True)
+
     
     def forward(self, x) -> Dict[str, List[Tensor]]:
         [xs, xm, xl] = self.yolov5(x)

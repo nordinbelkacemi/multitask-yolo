@@ -118,27 +118,33 @@ def get_labeled_img(image: PILImage, labels: List[ObjectLabel], classes: List[st
 def visualize_heatmap(
     target: Tensor,
     pred: Tensor,
+    obj_mask: Tensor,
+    noobj_mask: Tensor,
     output_idx: int,
     num_anchors: int
 ) -> plt.Figure:
     w, h = num_anchors, eval_batch_size * 2  # for every batch, 2 rows of heatmaps (target and pred),
                                         # one heatmap per anchor box
-    fig = plt.figure(figsize=(w * 2, h * 2)) # 2 inch square heatmaps
-    fig.suptitle(f"scale: {['small', 'medium', 'large'][output_idx]}")
+    fig, axs = plt.subplots(nrows=h, ncols=w, figsize=(w * 2, h * 2)) # 2 inch square heatmaps
+    fig.tight_layout()
 
     for img_idx in range(eval_batch_size):
-        anchor_targets = target[img_idx]
-        for i, anchor_target in enumerate(anchor_targets):
-            confs = anchor_target[..., 4]
-            img = confs.cpu().detach().numpy()
-            fig.add_subplot(h, w, img_idx * w * 2 + i + 1)
-            plt.imshow(img, vmin=0, vmax=1)
+        ts, ps = target[img_idx], pred[img_idx]
+        # oms, noms = obj_mask[img_idx], noobj_mask[img_idx]
+        # for i, (t, p, om, nom) in enumerate(zip(ts, ps, oms, noms)):
+        for i, (t, p) in enumerate(zip(ts, ps)):
+            t_scores, p_scores = t[..., 4], p[..., 4]
 
-        anchor_preds = pred[img_idx]
-        for i, anchor_pred in enumerate(anchor_preds):
-            confs = anchor_pred[..., 4]
-            img = confs.cpu().detach().numpy()
-            fig.add_subplot(h, w, img_idx * w * 2 + w + i + 1)
-            plt.imshow(img, vmin=0, vmax=1)
+            t_heatmap = t_scores.cpu().detach().numpy()
+            axs[img_idx * 2 + 0][i].imshow(t_heatmap, vmin=0, vmax=1)
+
+            p_heatmap = p_scores.cpu().detach().numpy()
+            axs[img_idx * 2 + 1][i].imshow(p_heatmap, vmin=0, vmax=1)
+
+            # om_heatmap = om.cpu().detach().numpy()
+            # axs[img_idx * 4 + 2][i].imshow(om_heatmap, vmin=0, vmax=1)
+
+            # nom_heatmap = nom.cpu().detach().numpy()
+            # axs[img_idx * 4 + 3][i].imshow(nom_heatmap, vmin=0, vmax=1)
     
     return fig

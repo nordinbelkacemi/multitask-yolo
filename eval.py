@@ -53,7 +53,7 @@ def eval(
         os.makedirs(f"./runs/{run_id}")
         writer = SummaryWriter(f"./runs/{run_id}")
 
-    dataloader = DataLoader(eval_dataset, eval_batch_size)
+    dataloader = DataLoader(eval_dataset, eval_batch_size, shuffle=False)
     loss_fn = MultitaskYOLOLoss(eval_dataset.classes, eval_dataset.class_grouping, eval_dataset.anchors)
     class_groups = eval_dataset.class_grouping.groups
 
@@ -76,9 +76,14 @@ def eval(
     for i in tqdm(range(len(dataloader)), colour="blue", desc="Eval"):
         yolo_input = dataloader[i]
         ids, x, labels = yolo_input.id_batch, yolo_input.image_batch.to(device), yolo_input.label_batch        
-        y = model.to(device)(x)                         # {"gp_1": [ys, ym, yl]_1, ..., "gp_n": [ys, ym, yl]_n}
-        losses, preds = loss_fn(y, labels, eval=True)   # {"gp_1": (loss, preds)_1, ..., "gp_n": (loss, preds)_n} loss_data_i
-                                                        # is the i-th group's loss data over all three pred scales
+        y = model.to(device)(x)     # {"gp_1": [ys, ym, yl]_1, ..., "gp_n": [ys, ym, yl]_n}
+        losses, preds = loss_fn(    # {"gp_1": (loss, preds)_1, ..., "gp_n": (loss, preds)_n} loss_data_i
+            y,                      # is the i-th group's loss data over all three pred scales
+            labels,
+            eval=True,
+            writer=writer if i == 0 else None,
+            epoch=epoch
+        )
         for group_name in class_groups.keys():
             for class_idx in range(len(class_groups[group_name])):
                 class_mask = losses[group_name]["pred_results"][:, 0] == class_idx

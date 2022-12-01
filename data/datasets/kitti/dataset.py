@@ -4,8 +4,8 @@ from data.datasets.kitti.class_grouping import *
 
 
 class KITTIDataset(Dataset):
-    def __init__(self, dataset_type: str, shuffle=True) -> None:
-        super().__init__(dataset_type, shuffle)
+    def __init__(self, dataset_type: str) -> None:
+        super().__init__(dataset_type)
     
 
     @property

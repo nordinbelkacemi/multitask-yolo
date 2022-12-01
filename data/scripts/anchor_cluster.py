@@ -139,7 +139,7 @@ def group_cluster_and_save(
 
 
 if __name__ == "__main__":
-    dataset = KITTIDataset(dataset_type="train", shuffle=False)
+    dataset = PascalVOCDataset(dataset_type="train")
     bboxes = torch.from_numpy(np.loadtxt(f"{dataset.root_path}/anchor_data/{dataset.name}.txt"))
     class_groups_i = {
         group_name: [dataset.classes.index(name) for name in class_names]
@@ -149,7 +149,8 @@ if __name__ == "__main__":
     for idx, (group_name, class_group_i) in enumerate(class_groups_i.items()):
         group_cluster_and_save(
             bboxes=bboxes,
-            ks=[3, 4, 5, 6, 7, 8, 9],
+            # ks=[3, 4, 5, 6, 7, 8, 9],
+            ks=[9],
             class_group_i=class_group_i,
             dataset_name=dataset.name,
             grouping_name=dataset.class_grouping.name,

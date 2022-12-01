@@ -5,8 +5,8 @@ import config.config as cfg
 
 
 class PascalVOCDataset(Dataset):
-    def __init__(self, dataset_type: str, shuffle=True) -> None:
-        super().__init__(dataset_type, shuffle)
+    def __init__(self, dataset_type: str) -> None:
+        super().__init__(dataset_type)
 
 
     @property
@@ -42,4 +42,4 @@ class PascalVOCDataset(Dataset):
 
     @property
     def class_grouping(self) -> ClassGrouping:
-        return cgs_logical_sep
+        return cgs_all_together

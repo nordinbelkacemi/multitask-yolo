@@ -68,8 +68,15 @@ class SPPF(nn.Module):
         return self.cv2(torch.cat((x, y1, y2, self.m(y2)), 1))
 
 
-def get_anchor_masks(anchors: List[List[float]]) -> List[List[int]]:
-    result = [[], [], []]
+def get_anchor_masks(anchors: List[List[int]]) -> List[List[int]]:
+    tmp = [[], [], []]
     for i in range(len(anchors)):
-        result[i % 3].append(i)
+        tmp[i % 3].append(i)
+    
+    result = [[], [], []]
+    x = 0
+    for i, t in enumerate(tmp):
+        for _ in t:
+            result[i].append(x)
+            x += 1
     return result

@@ -7,8 +7,8 @@ from typing import List
 
 if __name__ == "__main__":
     datasets: List[Dataset] = [
-        PascalVOCDataset(dataset_type="train", shuffle=False),
-        KITTIDataset(dataset_type="train", shuffle=False),
+        PascalVOCDataset(dataset_type="train"),
+        KITTIDataset(dataset_type="train"),
     ]
     
     for dataset in datasets:

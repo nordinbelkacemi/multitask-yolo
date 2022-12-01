@@ -93,6 +93,7 @@ class RandomHFlip(DatasetItemTransform):
     def __call__(self, dataset_item: DatasetItem) -> DatasetItem:
         if random() < self.p:
             return DatasetItem(
+                id=dataset_item.id,
                 image=dataset_item.image.transpose(PIL.Image.FLIP_LEFT_RIGHT),
                 labels=[
                     ObjectLabel(
