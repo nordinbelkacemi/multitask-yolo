@@ -2,8 +2,8 @@ from dataclasses import dataclass
 from torch import Tensor
 from typing import Optional, List
 
-from data.transforms import RandomHFlip, SquarePadAndResize
-from torchvision.transforms import Compose, ToTensor, Normalize
+from data.transforms import RandomGaussianBlur, RandomGrayscale, RandomHFlip, SquarePadAndResize
+from torchvision.transforms import Compose, ToTensor, Grayscale, GaussianBlur
 from data.dataset import Dataset, ObjectLabel
 import torch
 import config.config as cfg
@@ -40,6 +40,8 @@ class DataLoader:
         self.space_transforms = Compose([
             SquarePadAndResize(target_resolution=cfg.model_input_resolution),
             RandomHFlip(p=p_hflip),
+            RandomGrayscale(p=0.5 if not overfit else 0.0),
+            RandomGaussianBlur(p=0.5 if not overfit else 0.0),
         ])
         self.final_image_transforms = Compose([
             ToTensor(),
@@ -49,7 +51,7 @@ class DataLoader:
 
     def __len__(self):
         if overfit:
-            return 16
+            return 1
         else:
             return int(len(self.dataset) / self.batch_size)
     

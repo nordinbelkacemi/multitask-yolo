@@ -45,7 +45,6 @@ class MeanBCELoss(MeanLossBase):
 
 class YOLOLoss(nn.Module):
     """
-
     Forward method:
         xs (Tensor): Tensor of shape (nb, na_s * (5 + nc), ng_s, ng_s), where na_s and ng_s are
             the number of small anchors, and the number of grid cells in a given row/column for
@@ -160,7 +159,7 @@ class YOLOLoss(nn.Module):
             gt_j = torch.clamp(gt[:, 1].type(torch.int), min=0, max=ng - 1) # (n)
 
             anchor_ious_all = box_iou(ref_gt, ref_anchors)                  # (n, na_all)
-            anchor_ious_masked = anchor_ious_all[:, anchor_mask]            # (n, na)
+            # anchor_ious_masked = anchor_ious_all[:, anchor_mask]            # (n, na)
 
             best_n_all = anchor_ious_all.argmax(dim = 1)                    # (n)
             best_n_mask = torch.isin(                                       # (n)
@@ -183,7 +182,7 @@ class YOLOLoss(nn.Module):
 
                     obj_mask[b, a, j, i] = 1
                     noobj_mask[b, a, j, i] = 0
-                    noobj_mask[b, anchor_ious_masked[obj_i] > self.ignore_thres, j, i] = 0
+                    # noobj_mask[b, anchor_ious_masked[obj_i] > self.ignore_thres, j, i] = 0
 
                     target[b, a, j, i, 0:2] = gt_box[0:2] - torch.floor(gt_box[0:2])
                     target[b, a, j, i, 2:4] = torch.log(gt_box[2:4] / masked_anchors[a] + 1e-16)
@@ -209,7 +208,7 @@ class YOLOLoss(nn.Module):
 
         # print(obj_mask, noobj_mask)
 
-        if writer is not None and epoch is not None:
+        if writer is not None and epoch is not None and epoch % 20 == 0:
             log_heatmap(target, pred.detach(), obj_mask, noobj_mask, output_idx, self.class_indices, len(self.anchor_masks[output_idx]), eval, epoch, writer)
 
         return obj_mask, noobj_mask, target, n_gt, pred_results
@@ -262,6 +261,8 @@ class YOLOLoss(nn.Module):
         
         if eval or labels is None:
             nms(*preds, self.strides)
+            # for i, pred in enumerate(preds):
+            #     outputs[i][..., 4] = pred[..., 4]
 
         preds_image_space = [None for _ in preds]
         pred_results = [None for _ in preds]        
@@ -269,7 +270,7 @@ class YOLOLoss(nn.Module):
             # Loss
             if labels is not None:
                 obj_mask, noobj_mask, target, n_gt, pred_results[idx] = self.build_target(
-                    pred = torch.detach(pred),
+                    pred = pred.detach(),
                     labels = labels,
                     nch = 5 + self.nc,
                     output_idx = idx,
@@ -290,7 +291,7 @@ class YOLOLoss(nn.Module):
                 loss_wh[idx] = k * self.mse_loss(output[..., 2:4][obj_mask], target[..., 2:4][obj_mask])
                 loss_obj = k * self.bce_loss(output[..., 4][obj_mask], target[..., 4][obj_mask])
                 loss_noobj = k * self.bce_loss(output[..., 4][noobj_mask], target[..., 4][noobj_mask])
-                loss_conf[idx] = loss_obj + loss_noobj
+                loss_conf[idx] = (1 * loss_obj + 2 * loss_noobj) / 3
                 loss_cls[idx] = k * self.bce_loss(output[..., 5:][obj_mask], target[..., 5:][obj_mask])
                 # loss_xy[idx] = F.mse_loss(output[..., :2][obj_mask], target[..., :2][obj_mask], reduction="sum")
                 # loss_wh[idx] = F.mse_loss(output[..., 2:4][obj_mask], target[..., 2:4][obj_mask], reduction="sum")
@@ -305,9 +306,9 @@ class YOLOLoss(nn.Module):
 
         preds_image_space_merged = torch.cat(preds_image_space, dim=1)
 
-        # # https://github.com/ultralytics/yolov5/blob/c09fb2aa95b6ca86c460aa106e2308805649feb9/utils/loss.py#L111
-        # for i, f in enumerate([4.0, 1.0, 0.4]):
-        #     loss_conf[i] *= f
+        # https://github.com/ultralytics/yolov5/blob/c09fb2aa95b6ca86c460aa106e2308805649feb9/utils/loss.py#L111
+        for i, f in enumerate([4.0, 1.0, 0.4]):
+            loss_conf[i] *= f
 
         if labels is not None:
             loss = loss_xy.sum() + loss_wh.sum() + loss_conf.sum() + loss_cls.sum()

@@ -117,15 +117,17 @@ def eval(
             )
 
             kpis[f"{class_name} AP"] = class_ap_data["ap"]
-            log_precision_recall(
-                class_ap_data["recall_values"],
-                class_ap_data["precision_values"],
-                group_name,
-                class_name,
-                epoch,
-                writer,
-                i,
-            )
+            
+            if epoch % visualization_interval == 0:
+                log_precision_recall(
+                    class_ap_data["recall_values"],
+                    class_ap_data["precision_values"],
+                    group_name,
+                    class_name,
+                    epoch,
+                    writer,
+                    i,
+                )
 
     m_ap = torch.mean(torch.tensor([ap for ap in kpis.values() if ap is not torch.nan])).item()
     kpis["mAP"] = m_ap
@@ -138,7 +140,7 @@ def average_precision(pred_results: Tensor, n_gt: int) -> Dict:
 
     Args:
         pred_results (Tensor): tensor of shape (n_pred, 2): [[score, tp/fp], ...]
-            (tp/fp is 1 if prediction is a TP 0 if it is a  FP).
+            (tp/fp is 1 if prediction is a TP 0 if it is a FP).
         n_gt (int): number of ground truth objects
 
     Returns:

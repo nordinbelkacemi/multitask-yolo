@@ -30,4 +30,4 @@ class KITTIDataset(Dataset):
 
     @property
     def class_grouping(self) -> ClassGrouping:
-        return cgs_all_together
+        return cgs_all_sep

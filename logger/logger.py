@@ -106,3 +106,7 @@ def log_precision_recall(
     # fig.savefig(f"{log_dir}/{class_name}_prcurves.png")
     writer.add_figure(f"ep_{epoch}_{group_name}_pr_curves", fig, step, close=True)
     plt.close(fig)
+
+
+def log_lr(lr: float, writer: SummaryWriter):
+    writer.add_scalar("LR", lr)

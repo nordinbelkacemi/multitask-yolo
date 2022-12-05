@@ -11,6 +11,7 @@ from eval import eval
 from torch.utils.tensorboard import SummaryWriter
 from logger.logger import *
 from torch.optim import Optimizer
+from torch.optim.lr_scheduler import StepLR
 
 
 def train_one_epoch(
@@ -35,7 +36,12 @@ def train_one_epoch(
     """
     model.train()
 
-    dataloader = DataLoader(train_dataset, train_batch_size, shuffle=True, p_hflip=0.4)
+    dataloader = DataLoader(
+        train_dataset,
+        train_batch_size,
+        shuffle=True if not overfit else False,
+        p_hflip=0.5 if not overfit else 0.0,
+    )
     loss_fn: MultitaskYOLOLoss = MultitaskYOLOLoss(
         train_dataset.classes,
         train_dataset.class_grouping,
@@ -125,11 +131,13 @@ def eval_one_epoch(
 
 def train(model: MultitaskYOLO, num_epochs: int,  writer: SummaryWriter) -> None:
     optimizer = torch.optim.Adam(model.parameters(), lr, weight_decay=1e-4)
+    scheduler = StepLR(optimizer, step_size=60, gamma=0.1)
     best_mAP = -1
     for epoch in range(1, num_epochs + 1):
         # train one epoch
         train_losses = train_one_epoch(model, epoch, optimizer, writer)
         log_losses(train_losses, "train", epoch, writer)
+        log_lr(optimizer.param_groups[0]["lr"], writer)
         
         # evaluate one epoch if at the end of interval
         if epoch % eval_interval == 0 and epoch >= first_eval_epoch:
@@ -141,6 +149,8 @@ def train(model: MultitaskYOLO, num_epochs: int,  writer: SummaryWriter) -> None
             if kpis["mAP"] > best_mAP:
                 best_mAP = kpis["mAP"]
                 torch.save(model.state_dict(), f"{writer.log_dir}/saved_models/ep_{epoch}.pt")
+        
+        scheduler.step()
 
 
 

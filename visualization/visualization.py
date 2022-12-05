@@ -123,12 +123,12 @@ def visualize_heatmap(
     output_idx: int,
     num_anchors: int
 ) -> plt.Figure:
-    w, h = num_anchors, eval_batch_size * 2  # for every batch, 2 rows of heatmaps (target and pred),
-                                        # one heatmap per anchor box
+    w, h = num_anchors, 8 * 2   # for every batch, 2 rows of heatmaps (target and pred),
+                                # one heatmap per anchor box
     fig, axs = plt.subplots(nrows=h, ncols=w, figsize=(w * 2, h * 2)) # 2 inch square heatmaps
     fig.tight_layout()
 
-    for img_idx in range(eval_batch_size):
+    for img_idx in range(8):
         ts, ps = target[img_idx], pred[img_idx]
         # oms, noms = obj_mask[img_idx], noobj_mask[img_idx]
         # for i, (t, p, om, nom) in enumerate(zip(ts, ps, oms, noms)):
