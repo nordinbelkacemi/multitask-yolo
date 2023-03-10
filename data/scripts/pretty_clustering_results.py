@@ -3,7 +3,7 @@ from data.datasets.datasets import *
 from data.datasets.kitti import *
 
 if __name__ == "__main__":
-    dataset = PascalVOCDataset(dataset_type="train", shuffle=False)
+    dataset = PascalVOCDataset(dataset_type="train")
     class_groups = dataset.class_groups
     n_groups = len(class_groups.items())
 

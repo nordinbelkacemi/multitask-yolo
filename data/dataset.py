@@ -3,7 +3,6 @@ from PIL import Image
 from PIL.Image import Image as PILImage
 from typing import Dict, List, Optional
 from dataclasses import dataclass
-import random
 from abc import ABC, abstractmethod
 import config.config as cfg
 import ast
@@ -45,7 +44,7 @@ class DatasetItem:
 
 
 class Dataset(ABC):
-    def __init__(self, dataset_type: str, shuffle: bool) -> None:
+    def __init__(self, dataset_type: str) -> None:
         """
         Args:
             dataset_type (str): `train` or `val`
@@ -54,8 +53,6 @@ class Dataset(ABC):
         super().__init__()
         self.dataset_type = dataset_type
         self.ids = [f"{i:06}" for i in range(len(glob(f"{self.root_path}/*.jpg")))]
-        if shuffle:
-            random.shuffle(self.ids)
 
 
     @property

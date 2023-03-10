@@ -10,9 +10,16 @@ from tqdm import tqdm
 from eval import eval
 from torch.utils.tensorboard import SummaryWriter
 from logger.logger import *
+from torch.optim import Optimizer
+from torch.optim.lr_scheduler import StepLR
 
 
-def train_one_epoch(model: MultitaskYOLO, epoch: int, writer: SummaryWriter) -> Dict[str, float]:
+def train_one_epoch(
+    model: MultitaskYOLO,
+    epoch: int,
+    optimizer: Optimizer,
+    writer: SummaryWriter
+) -> Dict[str, float]:
     """
     Runs one epoch of training and evals if the epoch is an eval epoch (as per the eval
     interval).
@@ -29,13 +36,17 @@ def train_one_epoch(model: MultitaskYOLO, epoch: int, writer: SummaryWriter) -> 
     """
     model.train()
 
-    dataloader = DataLoader(train_dataset, train_batch_size)
+    dataloader = DataLoader(
+        train_dataset,
+        train_batch_size,
+        shuffle=True if not overfit else False,
+        p_hflip=0.5 if not overfit else 0.0,
+    )
     loss_fn: MultitaskYOLOLoss = MultitaskYOLOLoss(
         train_dataset.classes,
         train_dataset.class_grouping,
-        train_dataset.anchors
+        train_dataset.anchors,
     ).to(device)
-    optimizer = torch.optim.Adam(model.parameters(), lr, weight_decay=1e-4)
 
     total_losses = {
         "total": 0,
@@ -55,7 +66,7 @@ def train_one_epoch(model: MultitaskYOLO, epoch: int, writer: SummaryWriter) -> 
         # Forward pass
         y = model(x)
 
-        # Log heatmaps if first batch
+        # Log heatmaps if first batch (w and e get passed to loss)
         w = writer if i == 0 and epoch % visualization_interval == 0 else None
         e = epoch if i == 0 and epoch % visualization_interval == 0 else None
 
@@ -77,7 +88,11 @@ def train_one_epoch(model: MultitaskYOLO, epoch: int, writer: SummaryWriter) -> 
     return total_losses
 
 
-def eval_one_epoch(model: MultitaskYOLO, epoch: int, writer: SummaryWriter) -> Tuple[Dict[str, float], Dict[str, float]]:
+def eval_one_epoch(
+    model: MultitaskYOLO,
+    epoch: int,
+    writer: SummaryWriter
+) -> Tuple[Dict[str, float], Dict[str, float]]:
     """
     Args:
         model (MultitaskYOLO):
@@ -114,15 +129,18 @@ def eval_one_epoch(model: MultitaskYOLO, epoch: int, writer: SummaryWriter) -> T
     return kpis, losses
 
 
-def train(model: MultitaskYOLO, num_epochs: int, writer: SummaryWriter) -> None:
+def train(model: MultitaskYOLO, num_epochs: int,  writer: SummaryWriter) -> None:
+    optimizer = torch.optim.Adam(model.parameters(), lr, weight_decay=1e-4)
+    scheduler = StepLR(optimizer, step_size=60, gamma=0.1)
     best_mAP = -1
     for epoch in range(1, num_epochs + 1):
         # train one epoch
-        train_losses = train_one_epoch(model, epoch, writer)
+        train_losses = train_one_epoch(model, epoch, optimizer, writer)
         log_losses(train_losses, "train", epoch, writer)
+        log_lr(optimizer.param_groups[0]["lr"], writer)
         
         # evaluate one epoch if at the end of interval
-        if epoch % eval_interval == 0:
+        if epoch % eval_interval == 0 and epoch >= first_eval_epoch:
             kpis, val_losses = eval_one_epoch(model, epoch, writer)
             log_losses(val_losses, "val", epoch, writer)
             log_kpis(kpis, "eval", epoch, writer)
@@ -131,6 +149,8 @@ def train(model: MultitaskYOLO, num_epochs: int, writer: SummaryWriter) -> None:
             if kpis["mAP"] > best_mAP:
                 best_mAP = kpis["mAP"]
                 torch.save(model.state_dict(), f"{writer.log_dir}/saved_models/ep_{epoch}.pt")
+        
+        scheduler.step()
 
 
 
@@ -138,14 +158,13 @@ if __name__ == "__main__":
     run_id=f"train_{datetime.now().strftime('%Y_%h_%d_%H_%M_%S')}"
     os.makedirs(f"./runs/{run_id}/saved_models")
     writer = SummaryWriter(f"./runs/{run_id}")
+    model = MultitaskYOLO(
+        train_dataset.class_grouping,
+        train_dataset.anchors
+    ).to(device)
+    if saved_model_path is not None:
+        model.load_state_dict(torch.load(saved_model_path))
 
-    train(
-        model=MultitaskYOLO(
-            train_dataset.class_grouping,
-            train_dataset.anchors
-        ).to(device),
-        num_epochs=num_epochs,
-        writer=writer,
-    )
+    train(model, num_epochs, writer)
 
     writer.close()

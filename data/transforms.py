@@ -4,7 +4,7 @@ from typing import List
 
 import PIL
 import torchvision.transforms.functional as F
-from PIL import Image
+from PIL import Image, ImageFilter
 from PIL.Image import Image as PILImage
 from util.types import Resolution
 
@@ -93,6 +93,7 @@ class RandomHFlip(DatasetItemTransform):
     def __call__(self, dataset_item: DatasetItem) -> DatasetItem:
         if random() < self.p:
             return DatasetItem(
+                id=dataset_item.id,
                 image=dataset_item.image.transpose(PIL.Image.FLIP_LEFT_RIGHT),
                 labels=[
                     ObjectLabel(
@@ -103,6 +104,44 @@ class RandomHFlip(DatasetItemTransform):
                         h=label.h
                     ) for label in dataset_item.labels
                 ],
+            )
+        else:
+            return dataset_item
+
+
+# class RandomCrop(DatasetItemTransform):
+#     def __init__(self, p: float):
+#         self.p = p
+    
+#     def __call__(self, dataset_item: DatasetItem) -> DatasetItem:
+#         if random() < self.p:
+
+
+class RandomGrayscale(DatasetItemTransform):
+    def __init__(self, p: float):
+        self.p = p
+    
+    def __call__(self, dataset_item: DatasetItem) -> DatasetItem:
+        if random() < self.p:
+            return DatasetItem(
+                id=dataset_item.id,
+                image=dataset_item.image.convert('L'),
+                labels=dataset_item.labels,
+            )
+        else:
+            return dataset_item
+
+
+class RandomGaussianBlur(DatasetItemTransform):
+    def __init__(self, p: float):
+        self.p = p
+    
+    def __call__(self, dataset_item: DatasetItem) -> DatasetItem:
+        if random() < self.p:
+            return DatasetItem(
+                id=dataset_item.id,
+                image=dataset_item.image.filter(ImageFilter.GaussianBlur(radius = 2)),
+                labels=dataset_item.labels,
             )
         else:
             return dataset_item

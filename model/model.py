@@ -7,6 +7,8 @@ from torch import Tensor
 from model.loss import MultitaskYOLOLoss
 from util.device import device
 import config.config as cfg
+import math
+from torchsummary import summary
 
 
 class BackBone(nn.Module):
@@ -17,13 +19,13 @@ class BackBone(nn.Module):
         super().__init__()
         self.d1 = ConvBNSiLU(ch_in=3, ch_out=first_ch_out, k=6, s=2, p=2)                           # 64
         self.d2 = ConvBNSiLU(ch_in=self.d1.ch_out, ch_out=self.d1.ch_out * 2, k=3, s=2, p=1)        # 128
-        self.c3_1 = C3(ch_in=self.d2.ch_out, ch_out=self.d2.ch_out, n=2, shortcut=True, e=0.5)      # 128
+        self.c3_1 = C3(ch_in=self.d2.ch_out, ch_out=self.d2.ch_out, n=1, shortcut=True, e=0.5)      # 128
         self.d3 = ConvBNSiLU(ch_in=self.c3_1.ch_out, ch_out=self.c3_1.ch_out * 2, k=3, s=2, p=1)    # 256
-        self.c3_2 = C3(ch_in=self.d3.ch_out, ch_out=self.d3.ch_out, n=4, shortcut=True, e=0.5)      # 256
+        self.c3_2 = C3(ch_in=self.d3.ch_out, ch_out=self.d3.ch_out, n=2, shortcut=True, e=0.5)      # 256
         self.d4 = ConvBNSiLU(ch_in=self.c3_2.ch_out, ch_out=self.c3_2.ch_out * 2, k=3, s=2, p=1)    # 512
-        self.c3_3 = C3(ch_in=self.d4.ch_out, ch_out=self.d4.ch_out, n=6, shortcut=True, e=0.5)      # 512
+        self.c3_3 = C3(ch_in=self.d4.ch_out, ch_out=self.d4.ch_out, n=3, shortcut=True, e=0.5)      # 512
         self.d5 = ConvBNSiLU(ch_in=self.c3_3.ch_out, ch_out=self.c3_3.ch_out * 2, k=3, s=2, p=1)    # 1024
-        self.c3_4 = C3(ch_in=self.d5.ch_out, ch_out=self.d5.ch_out, n=2, shortcut=True, e=0.5)      # 1024
+        self.c3_4 = C3(ch_in=self.d5.ch_out, ch_out=self.d5.ch_out, n=1, shortcut=True, e=0.5)      # 1024
     
     def forward(self, x):
         x1 = self.c3_2(self.d3(self.c3_1(self.d2(self.d1(x)))))
@@ -44,9 +46,9 @@ class Neck(nn.Module):
         
         self.sppf = SPPF(ch_in=ch_in, ch_out=first_ch_out)
         self.cv1 = ConvBNSiLU(ch_in=self.sppf.ch_out, ch_out=self.sppf.ch_out // 2, k=1, s=1, p=0)
-        self.c3_1 = C3(ch_in=self.cv1.ch_out * 2, ch_out=self.cv1.ch_out, n=2, shortcut=False, e=1.0)
+        self.c3_1 = C3(ch_in=self.cv1.ch_out * 2, ch_out=self.cv1.ch_out, n=1, shortcut=False, e=1.0)
         self.cv2 = ConvBNSiLU(ch_in=self.c3_1.ch_out, ch_out=self.c3_1.ch_out // 2, k=1, s=1, p=0)
-        self.c3_2 = C3(ch_in=self.cv2.ch_out * 2, ch_out=self.cv2.ch_out, n=2, shortcut=False, e=1.0)
+        self.c3_2 = C3(ch_in=self.cv2.ch_out * 2, ch_out=self.cv2.ch_out, n=1, shortcut=False, e=1.0)
         
     def forward(self, x1, x2, x3):
         x4 = self.cv1(self.sppf(x3))
@@ -63,9 +65,9 @@ class Head(nn.Module):
     ) -> None:
         super().__init__()
         self.cv1 = ConvBNSiLU(ch_in=ch_in, ch_out=first_ch_out, k=3, s=2, p=1)
-        self.c3_1 = C3(ch_in=self.cv1.ch_out * 2, ch_out=self.cv1.ch_out * 2, n=2, shortcut=False, e=0.5)
+        self.c3_1 = C3(ch_in=self.cv1.ch_out * 2, ch_out=self.cv1.ch_out * 2, n=1, shortcut=False, e=0.5)
         self.cv2 = ConvBNSiLU(ch_in=self.c3_1.ch_out, ch_out=self.c3_1.ch_out, k=3, s=2, p=1)
-        self.c3_2 = C3(ch_in=self.cv2.ch_out * 2, ch_out=self.cv2.ch_out * 2, n=2, shortcut=False, e=0.5)
+        self.c3_2 = C3(ch_in=self.cv2.ch_out * 2, ch_out=self.cv2.ch_out * 2, n=1, shortcut=False, e=0.5)
     
     def forward(self, x6, x5, x4):
         xs = x6
@@ -93,6 +95,7 @@ class MultitaskYOLO(nn.Module):
     ) -> None:
         super().__init__()
         self.yolov5 = YOLOv5()
+        summary(self.yolov5.to(device), (3, 416, 416))
         self.mt_heads = nn.ModuleDict({
             group_name: nn.ModuleList([
                 nn.Conv2d(
@@ -114,6 +117,16 @@ class MultitaskYOLO(nn.Module):
             for (group_name, classes), group_anchors
             in zip(class_grouping.groups.items(), anchors.values())
         })
+
+        # initialize biases to output 0.01 score after sigmoid
+        p = 0.01
+        for conv_ms, group_anchors in zip(self.mt_heads.values(), anchors.values()):
+            for conv_m, a_mask in zip(conv_ms, get_anchor_masks(group_anchors)):
+                na = len(a_mask)
+                b = conv_m.bias.view(na, -1)
+                b.data[:, 4] = -math.log((1 - p) / p)
+                conv_m.bias = torch.nn.Parameter(b.view(-1), requires_grad=True)
+
     
     def forward(self, x) -> Dict[str, List[Tensor]]:
         [xs, xm, xl] = self.yolov5(x)

@@ -55,11 +55,11 @@ cgs_all_sep = ClassGrouping(
     anchor_nums={
         "Car": 9,
         "Cyclist": 9,
-        "Misc": 7,
-        "Pedestrian": 5,
-        "Person": 8,
-        "Tram": 6,
-        "Truck": 8,
-        "Van": 5,
+        "Misc": 9,
+        "Pedestrian": 9,
+        "Person_sitting": 9,
+        "Tram": 9,
+        "Truck": 9,
+        "Van": 9,
     }
 )

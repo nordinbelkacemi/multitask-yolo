@@ -1,12 +1,13 @@
 from dataclasses import dataclass
 from torch import Tensor
-from typing import Optional, List, Tuple
+from typing import Optional, List
 
-from data.transforms import RandomHFlip, SquarePadAndResize
-from torchvision.transforms import Compose, ToTensor, Normalize
+from data.transforms import RandomGaussianBlur, RandomGrayscale, RandomHFlip, SquarePadAndResize
+from torchvision.transforms import Compose, ToTensor, Grayscale, GaussianBlur
 from data.dataset import Dataset, ObjectLabel
 import torch
 import config.config as cfg
+from config.train_config import overfit
 
 @dataclass
 class YOLOInput:
@@ -27,13 +28,20 @@ class YOLOInput:
 
 
 class DataLoader:
-    def __init__(self, dataset, batch_size: int, p_hflip=0.0):
+    def __init__(self, dataset: Dataset, batch_size: int, shuffle: bool, p_hflip=0.0):
         self.dataset: Dataset = dataset
         self.batch_size = batch_size
+
+        n = len(dataset)
+        self.selection_indices = torch.arange(n).tolist()
+        if shuffle:
+            self.selection_indices = torch.randperm(n).tolist()
 
         self.space_transforms = Compose([
             SquarePadAndResize(target_resolution=cfg.model_input_resolution),
             RandomHFlip(p=p_hflip),
+            RandomGrayscale(p=0.5 if not overfit else 0.0),
+            RandomGaussianBlur(p=0.5 if not overfit else 0.0),
         ])
         self.final_image_transforms = Compose([
             ToTensor(),
@@ -42,7 +50,10 @@ class DataLoader:
     
 
     def __len__(self):
-        return int(len(self.dataset) / self.batch_size)
+        if overfit:
+            return 1
+        else:
+            return int(len(self.dataset) / self.batch_size)
     
     
     def __getitem__(self, index: int) -> YOLOInput:
@@ -58,7 +69,8 @@ class DataLoader:
         label_batch = [None for _ in range(b)]
         image_batch = torch.zeros(b, 3, h, w)
         for i in range(self.batch_size * index, self.batch_size * (index + 1)):
-            dataset_item = self.space_transforms(self.dataset[i])
+            idx = self.selection_indices[i]
+            dataset_item = self.space_transforms(self.dataset[idx])
             
             id_batch[i % self.batch_size] = dataset_item.id
             label_batch[i % self.batch_size] = dataset_item.labels

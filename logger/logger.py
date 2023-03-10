@@ -1,4 +1,4 @@
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 from torch.utils.tensorboard import SummaryWriter
 import torch
 from visualization.visualization import visualize_heatmap
@@ -59,14 +59,18 @@ def log_kpis(kpis: Dict[str, float], sub_tag: str, epoch: int, writer: SummaryWr
 def log_heatmap(
     target: Tensor,
     pred: Tensor,
+    obj_mask: Tensor,
+    noobj_mask: Tensor,
     output_idx: int,
+    class_indices: List[int],
     num_anchors: int,
     eval: bool,
     epoch: int,
     writer: SummaryWriter,
 ) -> None:
-    fig = visualize_heatmap(target, pred, output_idx, num_anchors)
-    tag = f"ep_{epoch}_heatmap" if not eval else f"ep_{epoch}_eval_heatmap"
+    fig = visualize_heatmap(target, pred, obj_mask, noobj_mask, output_idx, num_anchors)
+    grp = "-".join([str(i) for i in class_indices])
+    tag = f"ep_{epoch}_heatmap_{grp}" if not eval else f"ep_{epoch}_eval_heatmap_{grp}"
     writer.add_figure(tag, fig, output_idx, close=True)
 
 
@@ -102,3 +106,7 @@ def log_precision_recall(
     # fig.savefig(f"{log_dir}/{class_name}_prcurves.png")
     writer.add_figure(f"ep_{epoch}_{group_name}_pr_curves", fig, step, close=True)
     plt.close(fig)
+
+
+def log_lr(lr: float, writer: SummaryWriter):
+    writer.add_scalar("LR", lr)

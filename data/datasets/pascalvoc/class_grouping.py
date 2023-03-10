@@ -28,7 +28,7 @@ cgs_all_together = ClassGrouping(
         ]
     },
     anchor_nums={
-        "all": 6
+        "all": 9
     }
 )
 
@@ -63,8 +63,8 @@ cgs_logical_sep = ClassGrouping(
         ]
     },
     anchor_nums={
-        "vehicles": 6,
-        "animals": 8,
+        "vehicles": 9,
+        "animals": 9,
         "house_objects": 9,
     }
 )
@@ -76,25 +76,25 @@ cgs_all_sep = ClassGrouping(
         class_name: [class_name] for class_name in cgs_all_together.groups["all"]
     },
     anchor_nums={
-        "aeroplane": 5,
+        "aeroplane": 9,
         "bicycle": 9,
-        "bird": 6,
+        "bird": 9,
         "boat": 9,
-        "bottle": 7,
-        "bus": 8,
-        "car": 7,
-        "cat": 8,
-        "chair": 6,
+        "bottle": 9,
+        "bus": 9,
+        "car": 9,
+        "cat": 9,
+        "chair": 9,
         "cow": 9,
-        "diningtable": 8, 
-        "dog": 7,
+        "diningtable": 9, 
+        "dog": 9,
         "horse": 9,
-        "motorbike": 8,
-        "person": 8,
-        "pottedplant": 8,
-        "sheep": 6,
-        "sofa": 8,
+        "motorbike": 9,
+        "person": 9,
+        "pottedplant": 9,
+        "sheep": 9,
+        "sofa": 9,
         "train": 9,
-        "tvmonitor": 8,
+        "tvmonitor": 9,
     }
 )
