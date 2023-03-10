@@ -16,17 +16,6 @@ root/
           |---- ...
 ```
 
-## Troubleshooting:
+## Detections:
 
-#### ModuleNotFoundError:
-If running a script (for exapmle the pascalvoc_to_yolo conversion script) like so:
-
-```
-python -m data.pascalvoc.pascalvoc_to_yolo
-```
-
-first append the project's root path to `PYTHONPATH`, which you can do on linux with the following command (run the command from the project's root dir):
-
-```
-export PYTHONPATH="${PYTHONPATH}:${PWD}"
-```
+![detection results](detection1.png)
