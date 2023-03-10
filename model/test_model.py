@@ -4,11 +4,13 @@ import torch
 from torch import Tensor
 from config.train_config import train_dataset
 from util.device import device
+# import torchinfo
+from torchsummary import summary
 
 if __name__ == "__main__":
     dataset = train_dataset
     m = MultitaskYOLO(dataset.class_grouping, dataset.anchors).to(device)
-    # torchinfo.summary(m, (3, 416, 416), batch_dim=0, col_names = ("input_size", "output_size", "num_params", "kernel_size", "mult_adds"), verbose = 1, device="cpu")
+    # summary(m, (3, 640, 640))
 
     x = torch.randn(1, 3, 640, 640).to(device)
     y = m(x)

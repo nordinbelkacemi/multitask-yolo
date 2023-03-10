@@ -125,7 +125,7 @@ class MultitaskYOLO(nn.Module):
             ]
             for group_name, mt_head
             in self.mt_heads.items()
-        }     
+        }
 
 
 def get_detections(
